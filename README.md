@@ -1,10 +1,10 @@
-# 📚 BookSwap
+# 📚 SecondShelf
 
 A simple, local-focused web application that helps college students buy, sell, and trade used textbooks.
 
 ## 🎯 Project Description
 
-BookSwap is a vanilla JavaScript web application designed to solve a common problem for college students: finding affordable textbooks and being able to sell or trade books they no longer need. The application allows students to post listings for textbooks and browse listings from other students on campus, all without the complexity of traditional marketplace platforms.
+SecondShelf is a vanilla JavaScript web application designed to solve a common problem for college students: finding affordable textbooks and being able to sell or trade books they no longer need. The application allows students to post listings for textbooks and browse listings from other students on campus, all without the complexity of traditional marketplace platforms.
 
 ## ✨ Features
 
@@ -36,7 +36,7 @@ BookSwap is a vanilla JavaScript web application designed to solve a common prob
 ├── style.css              # Main stylesheet
 ├── script.js              # JavaScript functionality
 ├── projectDocs/           # Documentation folder
-│   └── BookSwap-PRD.md   # Product Requirements Document
+│   └── SecondShelf-PRD.md   # Product Requirements Document
 └── README.md              # This file
 ```
 
@@ -52,7 +52,7 @@ BookSwap is a vanilla JavaScript web application designed to solve a common prob
 1. Clone the repository:
 ```bash
 git clone [repository-url]
-cd BookSwap
+cd SecondShelf
 ```
 
 2. Open the project in your browser:

@@ -1,5 +1,5 @@
 // ==========================================
-// BookSwap - Main JavaScript File
+// SecondShelf - Main JavaScript File
 // ==========================================
 
 // Data Management
