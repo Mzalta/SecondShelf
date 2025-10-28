@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="BookSwap - Trade and sell used textbooks with college students locally">
+    <title>BookSwap - Used Textbook Exchange</title>
+</head>
+<body>
+    <!-- Main Navigation -->
+    <header class="main-header">
+        <nav class="main-nav">
+            <div class="logo">
+                <h1>📚 BookSwap</h1>
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html" class="active">Home</a></li>
+                <li><a href="add.html">Add Book</a></li>
+                <li><a href="favorites.html">Favorites</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <section class="hero">
+            <h2>Trade & Sell Your Textbooks</h2>
+            <p>Connect with students on campus to find the books you need at affordable prices</p>
+        </section>
+
+        <!-- Search/Filter Section -->
+        <section class="search-section">
+            <div class="search-container">
+                <label for="search-input" class="visually-hidden">Search for books</label>
+                <input type="text" id="search-input" placeholder="Search by title, author, or course..." class="search-input">
+                <span class="search-icon">🔍</span>
+            </div>
+            <div id="results-count" class="results-count"></div>
+        </section>
+
+        <!-- Book Listings Section -->
+        <section class="listings-section">
+            <h2 class="section-heading">Available Textbooks</h2>
+            <div id="book-listings" class="book-listings">
+                <!-- Book cards will be dynamically inserted here by JavaScript -->
+                <div class="no-listings">
+                    <p>No book listings yet. Be the first to add one!</p>
+                    <a href="add.html" class="btn btn-primary">Add Your First Book</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>&copy; 2024 BookSwap. Helping students save money on textbooks.</p>
+    </footer>
+</body>
+</html>
