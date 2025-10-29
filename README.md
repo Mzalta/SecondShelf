@@ -16,10 +16,9 @@ SecondShelf is a vanilla JavaScript web application designed to solve a common p
 
 ## 🚀 Live Demo
 
-**Deployed Link:** [Coming Soon - Deploy to Vercel] 
- 
- 
- 📄 View Product Requirements Document](./projectDocs/SecondShelf-PRD.md)
+**Deployed Link:** https://second-shelf.vercel.app/
+
+📄 [View Product Requirements Document](./projectDocs/SecondShelf-PRD.md)
 
 ## 🛠️ Technology Stack
 
