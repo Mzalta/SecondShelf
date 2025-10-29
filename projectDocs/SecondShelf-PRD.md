@@ -1,217 +1,208 @@
 # SecondShelf - Product Requirements Document (PRD)
 
-## Project Overview
+---
 
-**Project Name:** SecondShelf  
-**Project Type:** Web Application  
-**Target Users:** College students looking to buy, sell, or trade used textbooks locally  
-**Main Goal:** Provide a simple, local platform for students to exchange textbooks, saving money and reducing waste.
+## 1. Executive Summary
+**Product Name:** SecondShelf
+
+**SecondShelf** is a website where students can post textbooks they want to sell or trade and browse listings from other students. Users can add book details, search by course or title, and mark books as sold when they’re gone. All listings are stored locally, making it a simple, campus-focused tool for exchanging books efficiently.
+
+### The Problem
+College students lack a simple, organized way to buy, sell, and trade textbooks locally. Existing options are fragmented, slow, or overpriced, making it difficult to get the right books quickly or resell them efficiently after the semester ends.
 
 ---
 
-## Problem Statement
+## 2. Problem Statement & Opportunity
 
-College textbooks are expensive, and students often struggle to find affordable options or recoup costs after classes end. Many textbook exchange platforms are complex or require shipping, making them inconvenient for local exchanges.
+### The Problem
+College students struggle to find and exchange textbooks efficiently at the start of each semester. The current process is fragmented and time-consuming: students must navigate multiple platforms, coordinate shipping, wait days or weeks for delivery, and deal with complex logistics just to get the books they need for their courses. When courses end, there's no streamlined local way to find buyers quickly. Existing solutions are either inconvenient (campus bookstores with limited hours), slow (online shipping delays), or disorganized (social media groups without search capabilities).
 
----
+### Why This Matters
+- **Who's affected:** Millions of college students across the US who need textbooks every semester
+- **Frequency:** Students need textbooks every semester, often needing 4-6 books per term
+- **Impact:** Students waste valuable time hunting for books across multiple platforms, dealing with shipping delays, and coordinating pickups on busy class schedules
+- **Friction:** Current textbook exchanges require multiple steps across different platforms, extended wait times for shipping, and complex coordination that interrupts academic focus
 
-## Solution
+### Current Alternatives & Their Shortcomings
 
-SecondShelf is a simple, local-focused web application that allows college students to:
-- Post listings for textbooks they want to sell or trade
-- Browse available textbooks from other students
-- Save favorite listings for later
-- Search and filter by title, author, or course
+**Campus Bookstores:**
+- Limited operating hours that conflict with class schedules
+- Requires physical visits during busy transition periods
+- No way to preview or reserve books before visiting
+- Rigid policies and limited payment options
 
----
+**Online Platforms (Amazon, eBay, Chegg):**
+- 1-2 week delivery time defeats semester urgency
+- Can't inspect book condition before purchase
+- Unfamiliar seller profiles reduce trust
+- Requires creating accounts on multiple platforms
 
-## MVP Features (Minimum Viable Product)
+**Social Media Groups:**
+- Informal and disorganized
+- No search or filtering capabilities
+- Time-consuming to manually browse and contact sellers
+- Posts get buried quickly in feed
 
-### Core Features
+**Student Facebook Pages:**
+- Poor search functionality
+- Posts disappear quickly in feed
+- No persistent storage of listings
+- Cluttered with non-textbook content
 
-1. **Add Book Listing**
-   - Form to input: title, author, price/trade option, course, contact information
-   - Save listings to local storage for persistence
-   - Display new listing dynamically on the homepage
-
-2. **Browse Listings**
-   - Display all book listings as cards
-   - Show: title, author, price, course, contact info
-   - Each listing has "Mark as Sold" and "Save to Favorites" buttons
-   - Visual indicator for sold items
-
-3. **Search/Filter**
-   - Search bar to filter by title, author, or course
-   - Case-insensitive search
-   - Real-time filtering as user types
-
-4. **Favorites Management**
-   - Save listings to favorites for later review
-   - Dedicated favorites page
-   - Visual indicator for saved items
+**The Opportunity:** There's a significant gap for a simple, local-first solution that prioritizes convenience and ease of use. SecondShelf fills this gap by creating a streamlined platform that connects students on the same campus instantly, eliminating shipping delays and coordination headaches while making textbook exchanges effortless and fast.
 
 ---
 
-## Technical Specifications
+## 3. Target Users & User Personas
 
-### Technology Stack
-- **Frontend:** HTML5, CSS3, JavaScript (Vanilla - No frameworks)
-- **Storage:** LocalStorage API
-- **Deployment:** Vercel
-- **Version Control:** Git
+### Persona 1: Alex, The Busy Commuter Student
+- **Who:** 20-year-old computer science major at a state university
+- **Background/Context:** Commuter student who works part-time at a coffee shop, has a packed schedule between work and classes
+- **Needs:** 
+  - Quick access to textbooks without waiting weeks
+  - Simple transactions that fit into busy schedule
+  - Easy way to sell books after finishing courses
+- **Pain points:** Bookstore hours conflict with work schedule, worried about buying wrong editions online, doesn't want to deal with shipping delays or complex coordination
+Alex instant access to local textbooks without waiting weeks for shipping or visiting stores during limited hours, making book exchanges effortless
 
-### File Structure
-```
-/
-├── index.html              # Homepage with listings and search
-├── add.html               # Form for adding new books
-├── favorites.html         # Saved favorites page
-├── style.css              # Main stylesheet
-├── script.js              # JavaScript for functionality
-├── projectDocs/           # Documentation folder
-│   └── SecondShelf-PRD.md   # This file
-└── README.md              # Project overview
-```
+### Persona 2: Sarah, The Organized Upperclassman
+- **Who:** 22-year-old biology major in her junior year
+- **Background:** Has purchased 12+ textbooks over college career, wants to easily sell books from past semesters, lives on campus, has flexible schedule to meet buyers 
+- **Needs:**
+  - Organized way to track and sell multiple textbooks at once
+  - Save favorite listings for courses she'll take next semester
+  - Reliable contact method (email preferred)
+- **Pain points:** Has accumulated 8-10 textbooks from previous courses taking up space, frustrated by inconvenient buyback processes, wants an organized way to help other students find what they need 
+- **Why they need SecondShelf:** Enables Sarah to systematically organize and sell her textbooks quickly through one simple platform, creating an effortless exchange experience
 
-### Browser Compatibility
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-- Mobile browsers (iOS Safari, Chrome Mobile)
+**User Needs Intersection:** Both personas need a simple, trustworthy platform that connects them to other students quickly and efficiently, making textbook exchanges effortless and convenient without the hassle of multiple platforms or complex logistics.
 
 ---
 
-## User Stories
+## 4. MVP Feature Specifications
 
-1. As a student, I want to post my used textbook so others can find it.
-2. As a student, I want to search for textbooks for my courses.
-3. As a student, I want to save interesting listings to review later.
-4. As a student, I want to mark my listing as sold when it's gone.
+### Feature 1: Add Book Listing
+**User Story:** As a student, I want to post my used textbook with title, author, price, course, and contact information so that other students can find and purchase it.
 
----
+**Acceptance Criteria:**
+- Form includes required fields: title, author, course, price/trade option, contact info, and poster name
+- Form validation prevents submission with empty required fields
+- Submitted listings immediately appear on homepage
+- Listing data persists in browser localStorage across page refreshes
+- Poster name is tracked to ensure only the owner can mark listing as sold
 
-## Design Requirements
+### Feature 2: Browse Book Listings
+**User Story:** As a student, I want to view all available textbooks in a clean card layout so that I can quickly scan what's available on campus.
 
-### Visual Design
-- Clean, modern aesthetic
-- Readable fonts (system font stack)
-- Simple color scheme: light blue (#4a90e2) + white background
-- Card-based layout for book listings
-- Responsive design for mobile devices
+**Acceptance Criteria:**
+- All listings display as individual cards on the homepage
+- Each card shows: title, author, course, price, contact info, and poster name
+- Listings are readable and visually organized
+- Card layout is responsive and works on mobile devices
+- Empty state message displays when no listings exist
 
-### User Experience
-- Intuitive navigation
-- Clear calls-to-action
-- Immediate visual feedback on button clicks
-- No console errors or warnings
-- Fast loading times
+### Feature 3: Search & Filter Listings
+**User Story:** As a student, I want to search listings by title, author, or course name so that I can quickly find textbooks relevant to my classes.
 
----
+**Acceptance Criteria:**
+- Search bar appears prominently on homepage
+- Real-time filtering updates results as user types
+- Search is case-insensitive
+- Search matches against title, author, and course fields
+- Results count displays showing number of matching listings
+- Clear indication when no results match search
 
-## Non-Functional Requirements
+### Feature 4: Save to Favorites
+**User Story:** As a student, I want to save interesting listings to a favorites list so that I can review and contact sellers later.
 
-### Performance
-- Page load time < 2 seconds
-- Smooth scrolling and transitions
-- No layout shifts
+**Acceptance Criteria:**
+- "Save to Favorites" button appears on every listing
+- Button changes to "Saved" state when clicked
+- Favorites persist in localStorage
+- Favorites page displays all saved listings
+- Users can toggle favorites on/off
+- Favorites page shows empty state when no favorites exist
 
-### Accessibility
-- Semantic HTML5 elements
-- Proper heading hierarchy
-- Alt text for icons (emoji used as visual aids)
-- Keyboard navigation support
+### Feature 5: Mark Listing as Sold
+**User Story:** As a student, I want to remove my listing when I sell my textbook so that interested buyers know it's no longer available.
 
-### Code Quality
-- Clean, well-commented code
-- Consistent formatting
-- No inline CSS or JavaScript
-- Separated concerns (HTML, CSS, JS)
-
----
-
-## Future Enhancements (Post-MVP)
-
-### Weeks 2-3
-- Add book condition field
-- Photo upload option for book covers
-- Messaging/contact form integration
-- Enhanced favorites features
-
-### Weeks 4-5
-- User accounts/login system (optional)
-- Campus/location filter for multi-campus schools
-- Email notifications for new matches
-
-### Week 6+
-- Rating/review system for trusted users
-- Advanced search filters (price range, condition)
-- Mobile app development
-- Integration with campus bookstore
+**Acceptance Criteria:**
+- "Mark as Sold" button only appears on listings owned by current user
+- Clicking button permanently removes listing from homepage
+- Listing also removed from favorites lists
+- Removal persists across page refreshes
+- Ownership determined by matching poster name with current user
 
 ---
 
-## Success Metrics
+## 5. Future Roadmap
 
-- **User Engagement:** Number of listings created
-- **Search Usage:** Frequency of search bar usage
-- **Favorites:** Number of saved favorites
-- **Completion Rate:** % of listings marked as sold
+### Week 2-3: Enhanced Listing Features
+- **Book Condition Field:** Add dropdown for condition (New, Like New, Good, Fair) to help buyers make informed decisions
+- **Photo Upload:** Allow students to upload photos of book cover for visual verification
+- **Expanded Favorites:** Add ability to add notes to favorites, share favorites list, and set price alerts
 
----
+### Week 4-5: Platform Growth Features
+- **User Accounts:** Optional login system to track personal listing history and favorite sellers
+- **Contact Form Integration:** Add in-app messaging system so students can contact sellers without revealing email/phone publicly
+- **Campus Location Filter:** For multi-campus universities, filter listings by specific campus or dorm location
+- **Email Notifications:** Alert users when new books match their favorited searches
 
-## Constraints and Assumptions
+### Week 6: Trust & Community Features
+- **Rating System:** Allow buyers to rate sellers after transactions to build trust
+- **User Profiles:** Display seller ratings and transaction history to establish credibility
+- **Advanced Search Filters:** Filter by price range, condition, and posting date
+- **Campus Integration:** Partner with campus bookstores to display new vs used pricing comparisons
+- **Personal Dashboard:** Show users their posted listings, sold history, and earnings summary
 
-### Constraints
-- No backend server required (localStorage only)
-- No database integration
-- No authentication system (for MVP)
-- Vanilla JavaScript only (no frameworks)
 
-### Assumptions
-- Users have modern browsers with localStorage support
-- Users will enter data honestly
-- Local storage is sufficient for MVP scale
-- Users primarily access via desktop or mobile browsers
-
----
-
-## Timeline
-
-**Week 1:** MVP development
-- HTML structure
-- CSS styling
-- JavaScript functionality
-- LocalStorage integration
-- Testing and debugging
-- Deployment to Vercel
-
-**Weeks 2+:** Feature enhancements (see Future Enhancements)
+### Future Enhancements (Post-MVP):
+- Mobile app development for iOS and Android
+- Payment integration for in-app transactions
+- Textbook price comparison across platforms
+- Integration with campus course schedules to show relevant books
+- Group buying discounts for multiple books from one seller
+- Automated reminders when textbooks for registered courses become available
 
 ---
 
-## Risk Mitigation
+## 6. Success Metrics
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| LocalStorage limits exceeded | High | Add data validation, show warnings, implement data cleanup |
-| Browser compatibility issues | Medium | Test on multiple browsers, use feature detection |
-| Security vulnerabilities | Medium | Validate input, escape HTML, no server-side data storage |
-| Poor user experience | High | User testing, iterative design improvements |
+### 1. Listings Created
+- **Target:** 50+ active listings within first month of launch on a single campus
+- **Measurement:** Count of total listings created in localStorage
+- **Why it matters:** Indicates platform adoption and active user base
 
----
+### 2. Listing Completion Rate
+- **Target:** 40%+ of postings result in sold transactions
+- **Measurement:** Number of listings removed vs total listings created
+- **Why it matters:** Proves students are successfully buying and selling, validating the marketplace concept
 
-## Definition of Done
-
-- [x] All MVP features functional
-- [x] No console errors
-- [x] Responsive design works on mobile
-- [x] Code is clean and well-commented
-- [x] Deployed to Vercel
-- [x] README includes deployment link
-- [x] Git commits are logical and documented
+### 3. Average Time to Sale
+- **Target:** 50% of books sell within 7 days of posting
+- **Measurement:** Track listing creation date to removal date
+- **Why it matters:** Speed of transactions demonstrates the platform's effectiveness in connecting buyers and sellers
 
 ---
 
-**Last Updated:** December 2024  
-**Project Status:** In Development
+## 7. Open Questions
+
+### 1. Should we add user verification or keep it anonymous?
+We need to decide whether to implement basic student verification (e.g., .edu email requirement) or keep the platform completely anonymous and trust-based. Verification increases trust but adds friction to user registration. Anonymous is faster to launch but could enable fraudulent listings.
+
+### 2. Should we monetize the platform, and if so, how?
+If the platform gains traction, we need to determine a revenue model: charge small transaction fees (e.g., 5% on sales), charge listing fees for premium placement, keep it free and monetize later, or seek sponsorship from campus bookstores. This decision impacts user adoption and long-term sustainability.
+
+### 3. Should we prioritize single-campus focus or expand immediately?
+We need to decide whether SecondShelf should launch and succeed on one campus first before expanding, or launch broadly across multiple campuses simultaneously. Single-campus allows faster iteration and community building, while multi-campus provides larger marketplace but complex logistics.
+
+### 4. How should we handle dispute resolution between buyers and sellers?
+If a student receives a book in worse condition than described, how should we handle this? No policy (caveat emptor), community reporting system, or seller blacklist? This affects user trust and platform reputation versus simplicity of implementation.
+
+### 5. Should we integrate with popular payment apps (Venmo, PayPal) or keep transactions off-platform?
+We need to determine whether to facilitate payments within SecondShelf or let students use existing payment methods (cash, Venmo, etc.). On-platform payments increase trust and prevent scams, but off-platform keeps transactions simple and avoids payment processing fees.
+
+---
+
+**Document Version:** 1.0  
+**Last Updated:** October 27, 2025  
