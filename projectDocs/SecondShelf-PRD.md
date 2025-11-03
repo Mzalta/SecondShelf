@@ -32,10 +32,10 @@ College students struggle to find and exchange textbooks efficiently at the star
 - Rigid policies and limited payment options
 
 **Online Platforms (Amazon, eBay, Chegg):**
-- 1-2 week delivery time defeats semester urgency
-- Can't inspect book condition before purchase
-- Unfamiliar seller profiles reduce trust
-- Requires creating accounts on multiple platforms
+- Buyers face additional costs like shipping fees and tax, reducing savings.
+- Managing multiple accounts and orders across platforms adds unnecessary complexity.
+- Communication with sellers can be slow or unreliable, especially for used listings.
+- Shipping times often cause delays, leaving students without required materials during the first weeks of class.
 
 **Social Media Groups:**
 - Informal and disorganized
@@ -63,7 +63,7 @@ College students struggle to find and exchange textbooks efficiently at the star
   - Simple transactions that fit into busy schedule
   - Easy way to sell books after finishing courses
 - **Pain points:** Bookstore hours conflict with work schedule, worried about buying wrong editions online, doesn't want to deal with shipping delays or complex coordination
-Alex instant access to local textbooks without waiting weeks for shipping or visiting stores during limited hours, making book exchanges effortless
+- **Why they need SecondShelf:** Gives Alex instant access to local textbooks without waiting weeks for shipping or visiting stores during limited hours, making book exchanges effortless
 
 ### Persona 2: Sarah, The Organized Upperclassman
 - **Who:** 22-year-old biology major in her junior year
@@ -169,17 +169,17 @@ Alex instant access to local textbooks without waiting weeks for shipping or vis
 ## 6. Success Metrics
 
 ### 1. Listings Created
-- **Target:** 50+ active listings within first month of launch on a single campus
+- **Target:** 25+ active listings within first month of launch on a single campus
 - **Measurement:** Count of total listings created in localStorage
 - **Why it matters:** Indicates platform adoption and active user base
 
 ### 2. Listing Completion Rate
-- **Target:** 40%+ of postings result in sold transactions
+- **Target:** 30%+ of postings result in sold transactions
 - **Measurement:** Number of listings removed vs total listings created
 - **Why it matters:** Proves students are successfully buying and selling, validating the marketplace concept
 
 ### 3. Average Time to Sale
-- **Target:** 50% of books sell within 7 days of posting
+- **Target:** 30% of books sell within 7 days of posting
 - **Measurement:** Track listing creation date to removal date
 - **Why it matters:** Speed of transactions demonstrates the platform's effectiveness in connecting buyers and sellers
 
