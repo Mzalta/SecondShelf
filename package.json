@@ -1,0 +1,48 @@
+{
+  "name": "second-shelf",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "autoprefixer": "^10.4.22",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.559.0",
+    "next": "^14.2.0",
+    "postcss": "^8.5.6",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-hook-form": "^7.68.0",
+    "tailwindcss": "^3.4.19",
+    "zod": "^4.1.13",
+    "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.2.0",
+    "typescript": "^5.3.0"
+  },
+  "description": "A simple, local-focused web application that helps college students buy, sell, and trade used textbooks.",
+  "main": "script.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mzalta/SecondShelf.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Mzalta/SecondShelf/issues"
+  },
+  "homepage": "https://github.com/Mzalta/SecondShelf#readme"
+}
