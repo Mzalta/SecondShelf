@@ -21,6 +21,9 @@ module.exports = {
           900: '#1e3a8a',
         },
       },
+      maxWidth: {
+        '1200': '1200px',
+      },
     },
   },
   plugins: [],
