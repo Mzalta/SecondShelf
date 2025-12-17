@@ -1,35 +1,10 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.next({ request })
-  }
-
-  // Create a simple client for middleware
-  // Session refresh is handled by the client-side code
-  const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  })
-
-  // Try to refresh session if there's a session cookie
-  const authHeader = request.headers.get('authorization')
-  if (authHeader) {
-    try {
-      await supabase.auth.getUser()
-    } catch {
-      // Ignore errors in middleware
-    }
-  }
-
-  return NextResponse.next({ request })
+  // Middleware runs on Edge runtime - keep it simple
+  // Authentication is handled client-side and in API routes
+  // This middleware just passes through requests
+  return NextResponse.next()
 }
 
 export const config = {
