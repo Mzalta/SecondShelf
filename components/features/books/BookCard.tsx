@@ -6,16 +6,14 @@ import Button from '@/components/ui/Button'
 
 interface BookCardProps {
   book: Book
-  index: number
   isFavorite?: boolean
   isOwner?: boolean
-  onToggleFavorite: (index: number) => void
-  onMarkAsSold?: (index: number) => void
+  onToggleFavorite: () => void
+  onMarkAsSold?: () => void
 }
 
 export default function BookCard({
   book,
-  index,
   isFavorite = false,
   isOwner = false,
   onToggleFavorite,
@@ -35,19 +33,26 @@ export default function BookCard({
       <p className="text-sm text-gray-700 mb-4">
         <strong>Contact:</strong> {book.contact}
       </p>
+      {book.sold && (
+        <div className="mb-4">
+          <span className="inline-block px-3 py-1 bg-red-100 text-red-800 text-sm font-semibold rounded-full">
+            Sold
+          </span>
+        </div>
+      )}
       <div className="flex gap-2 flex-wrap">
         <Button
           variant="favorite"
           size="sm"
-          onClick={() => onToggleFavorite(index)}
+          onClick={onToggleFavorite}
         >
           {isFavorite ? '★ Saved' : '☆ Save to Favorites'}
         </Button>
-        {isOwner && onMarkAsSold && (
+        {isOwner && onMarkAsSold && !book.sold && (
           <Button
             variant="danger"
             size="sm"
-            onClick={() => onMarkAsSold(index)}
+            onClick={onMarkAsSold}
           >
             Mark as Sold
           </Button>
