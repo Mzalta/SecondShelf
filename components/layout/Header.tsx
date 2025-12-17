@@ -73,7 +73,7 @@ export default function Header() {
                 onClick={handleSignIn}
                 className="!bg-blue-700 hover:!bg-blue-800"
               >
-                Sign In
+                Sign In with Google
               </Button>
             )}
           </div>
