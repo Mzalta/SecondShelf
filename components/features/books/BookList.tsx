@@ -1,6 +1,7 @@
 'use client'
 
 import { Book } from '@/types'
+import type { User } from '@supabase/supabase-js'
 import BookCard from './BookCard'
 import BookGrid from './BookGrid'
 import EmptyState from '@/components/ui/EmptyState'
@@ -9,16 +10,16 @@ import Link from 'next/link'
 
 interface BookListProps {
   books: Book[]
-  favorites?: number[]
-  currentUser?: string
+  favoriteIds?: Set<string>
+  currentUser?: User | null
   isLoading?: boolean
-  onToggleFavorite: (index: number) => void
-  onMarkAsSold?: (index: number) => void
+  onToggleFavorite: (bookId: string) => void
+  onMarkAsSold?: (bookId: string) => void
 }
 
 export default function BookList({
   books,
-  favorites = [],
+  favoriteIds = new Set(),
   currentUser,
   isLoading = false,
   onToggleFavorite,
@@ -41,19 +42,20 @@ export default function BookList({
   
   return (
     <BookGrid>
-      {books.map((book, index) => {
-        const isFavorite = favorites.includes(index)
-        const isOwner = Boolean(currentUser && book.poster === currentUser)
+      {books.map((book) => {
+        if (!book.id) return null // Skip books without IDs
+        
+        const isFavorite = favoriteIds.has(book.id)
+        const isOwner = Boolean(currentUser && book.userId === currentUser.id)
         
         return (
           <BookCard
-            key={index}
+            key={book.id}
             book={book}
-            index={index}
             isFavorite={isFavorite}
             isOwner={isOwner}
-            onToggleFavorite={onToggleFavorite}
-            onMarkAsSold={onMarkAsSold}
+            onToggleFavorite={() => onToggleFavorite(book.id!)}
+            onMarkAsSold={isOwner && onMarkAsSold ? () => onMarkAsSold(book.id!) : undefined}
           />
         )
       })}

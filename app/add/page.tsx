@@ -1,12 +1,15 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useBookStore } from '@/lib/store/useBookStore'
+import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
 import FormInput from '@/components/features/forms/FormInput'
 import Button from '@/components/ui/Button'
+import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { BookFormData } from '@/types'
 
 const bookSchema = z.object({
@@ -20,7 +23,9 @@ const bookSchema = z.object({
 
 export default function AddBookPage() {
   const router = useRouter()
-  const { addListing, setCurrentUser } = useBookStore()
+  const { addListing, loading, error, setCurrentUser, fetchBooks, clearError } = useBookStore()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   
   const {
     register,
@@ -31,20 +36,66 @@ export default function AddBookPage() {
     resolver: zodResolver(bookSchema)
   })
   
-  const onSubmit = async (data: BookFormData) => {
-    setCurrentUser(data.poster)
-    addListing({
-      ...data,
-      sold: false,
-      createdAt: new Date().toISOString()
+  // Check authentication on mount
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      setCurrentUser(user)
+      setIsAuthenticated(!!user)
+      setCheckingAuth(false)
     })
-    reset()
-    router.push('/')
+  }, [setCurrentUser])
+  
+  const handleSignIn = async () => {
+    await signInWithGoogle()
+  }
+  
+  const onSubmit = async (data: BookFormData) => {
+    try {
+      await addListing(data)
+      await fetchBooks() // Refresh the list
+      reset()
+      router.push('/')
+    } catch (error) {
+      // Error is already handled in the store
+      console.error('Error adding book:', error)
+    }
+  }
+  
+  if (checkingAuth) {
+    return (
+      <section className="max-w-2xl mx-auto">
+        <div className="text-center py-8">Checking authentication...</div>
+      </section>
+    )
+  }
+  
+  if (!isAuthenticated) {
+    return (
+      <section className="max-w-2xl mx-auto">
+        <h2 className="text-3xl font-bold mb-6">Add a New Book Listing</h2>
+        <div className="bg-white rounded-lg shadow-md p-6 text-center">
+          <p className="mb-4 text-gray-700">
+            You need to sign in to add a book listing.
+          </p>
+          <Button
+            variant="primary"
+            onClick={handleSignIn}
+          >
+            Sign in with Google
+          </Button>
+        </div>
+      </section>
+    )
   }
   
   return (
     <section className="max-w-2xl mx-auto">
       <h2 className="text-3xl font-bold mb-6">Add a New Book Listing</h2>
+      
+      <ErrorDisplay
+        error={error}
+        onDismiss={() => clearError()}
+      />
       
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow-md p-6">
         <FormInput
@@ -99,8 +150,8 @@ export default function AddBookPage() {
           <Button
             type="submit"
             variant="primary"
-            loading={isSubmitting}
-            disabled={isSubmitting}
+            loading={isSubmitting || loading}
+            disabled={isSubmitting || loading}
           >
             Add Listing
           </Button>
@@ -108,6 +159,7 @@ export default function AddBookPage() {
             type="button"
             variant="secondary"
             onClick={() => reset()}
+            disabled={isSubmitting || loading}
           >
             Clear Form
           </Button>

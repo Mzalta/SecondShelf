@@ -1,19 +1,86 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useBookStore } from '@/lib/store/useBookStore'
+import { getFavoriteBooks } from '@/lib/api/favorites'
+import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
 import BookCard from '@/components/features/books/BookCard'
 import BookGrid from '@/components/features/books/BookGrid'
 import EmptyState from '@/components/ui/EmptyState'
+import Loading from '@/components/ui/Loading'
+import Button from '@/components/ui/Button'
+import type { Book } from '@/types'
 
 export default function FavoritesPage() {
-  const { listings, favorites, currentUser, toggleFavorite, markAsSold } = useBookStore()
+  const { 
+    favoriteIds, 
+    currentUser, 
+    loading,
+    toggleFavorite, 
+    markAsSold,
+    setCurrentUser,
+    fetchFavorites
+  } = useBookStore()
+  const [favoriteBooks, setFavoriteBooks] = useState<Book[]>([])
+  const [loadingFavorites, setLoadingFavorites] = useState(true)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   
-  // Get favorite books with their original indices
-  const favoriteBooksWithIndices = favorites
-    .filter((index) => index < listings.length)
-    .map((index) => ({ book: listings[index], originalIndex: index }))
+  // Check authentication and fetch favorites on mount
+  useEffect(() => {
+    const loadData = async () => {
+      const user = await getCurrentUser()
+      setCurrentUser(user)
+      setCheckingAuth(false)
+      
+      if (user) {
+        await fetchFavorites()
+        try {
+          const favorites = await getFavoriteBooks()
+          setFavoriteBooks(favorites)
+        } catch (error) {
+          console.error('Error loading favorites:', error)
+        }
+      }
+      setLoadingFavorites(false)
+    }
+    
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
-  if (favoriteBooksWithIndices.length === 0) {
+  const handleSignIn = async () => {
+    await signInWithGoogle()
+  }
+  
+  if (checkingAuth || loadingFavorites) {
+    return (
+      <section>
+        <h2 className="text-3xl font-bold mb-6">Your Saved Favorites</h2>
+        <Loading />
+      </section>
+    )
+  }
+  
+  if (!currentUser) {
+    return (
+      <section>
+        <h2 className="text-3xl font-bold mb-6">Your Saved Favorites</h2>
+        <div className="bg-white rounded-lg shadow-md p-6 text-center">
+          <p className="mb-4 text-gray-700">
+            You need to sign in to view your favorites.
+          </p>
+          <Button
+            variant="primary"
+            onClick={handleSignIn}
+          >
+            Sign in with Google
+          </Button>
+        </div>
+      </section>
+    )
+  }
+  
+  if (favoriteBooks.length === 0) {
     return (
       <section>
         <h2 className="text-3xl font-bold mb-6">Your Saved Favorites</h2>
@@ -30,20 +97,22 @@ export default function FavoritesPage() {
   return (
     <section>
       <h2 className="text-3xl font-bold mb-6">Your Saved Favorites</h2>
+      {loading && <Loading />}
       <BookGrid>
-        {favoriteBooksWithIndices.map(({ book, originalIndex }) => {
-          const isFavorite = favorites.includes(originalIndex)
-          const isOwner = Boolean(currentUser && book.poster === currentUser)
+        {favoriteBooks.map((book) => {
+          if (!book.id) return null
+          
+          const isFavorite = favoriteIds.has(book.id)
+          const isOwner = Boolean(currentUser && book.userId === currentUser.id)
           
           return (
             <BookCard
-              key={originalIndex}
+              key={book.id}
               book={book}
-              index={originalIndex}
               isFavorite={isFavorite}
               isOwner={isOwner}
-              onToggleFavorite={toggleFavorite}
-              onMarkAsSold={isOwner ? markAsSold : undefined}
+              onToggleFavorite={() => toggleFavorite(book.id!)}
+              onMarkAsSold={isOwner ? () => markAsSold(book.id!) : undefined}
             />
           )
         })}
