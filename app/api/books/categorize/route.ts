@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
 /**
  * POST /api/books/categorize
  * Categorizes a book based on title, author, and course information
@@ -20,6 +15,11 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Initialize OpenAI client lazily (only when route is called, not during build)
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
 
     const body = await request.json()
     const { title, author, course } = body

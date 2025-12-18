@@ -2,16 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-11-17.clover',
-})
-
 /**
  * POST /api/subscriptions/cancel
  * Cancel user's subscription at period end
  */
 export async function POST(request: NextRequest) {
   try {
+    // Initialize Stripe client lazily (only when route is called, not during build)
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json(
+        { error: 'Stripe secret key is not configured' },
+        { status: 500 }
+      )
+    }
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2025-11-17.clover',
+    })
+
     const supabase = createClient()
     
     // Check authentication

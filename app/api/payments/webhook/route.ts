@@ -2,24 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-11-17.clover',
-})
-
-// Initialize Supabase admin client for webhook (bypasses RLS)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-)
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
-
 // Disable body parsing for webhook route
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,6 +11,39 @@ export const dynamic = 'force-dynamic'
  * Handles Stripe webhook events
  */
 export async function POST(request: NextRequest) {
+  // Initialize clients lazily (only when route is called, not during build)
+  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return NextResponse.json(
+      { error: 'Stripe configuration is missing' },
+      { status: 500 }
+    )
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json(
+      { error: 'Supabase configuration is missing' },
+      { status: 500 }
+    )
+  }
+
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2025-11-17.clover',
+  })
+
+  // Initialize Supabase admin client for webhook (bypasses RLS)
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  )
+
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+
   const body = await request.text()
   const signature = request.headers.get('stripe-signature')!
 
@@ -48,17 +63,17 @@ export async function POST(request: NextRequest) {
     switch (event.type) {
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
-        await handlePaymentSuccess(paymentIntent)
+        await handlePaymentSuccess(paymentIntent, supabaseAdmin)
         break
       }
       case 'payment_intent.payment_failed': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
-        await handlePaymentFailure(paymentIntent)
+        await handlePaymentFailure(paymentIntent, supabaseAdmin)
         break
       }
       case 'payment_intent.canceled': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
-        await handlePaymentCanceled(paymentIntent)
+        await handlePaymentCanceled(paymentIntent, supabaseAdmin)
         break
       }
       default:
@@ -75,7 +90,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
+async function handlePaymentSuccess(
+  paymentIntent: Stripe.PaymentIntent,
+  supabaseAdmin: ReturnType<typeof createClient>
+) {
   const { error } = await supabaseAdmin
     .from('purchases')
     .update({
@@ -92,7 +110,10 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
   console.log(`Payment succeeded for intent: ${paymentIntent.id}`)
 }
 
-async function handlePaymentFailure(paymentIntent: Stripe.PaymentIntent) {
+async function handlePaymentFailure(
+  paymentIntent: Stripe.PaymentIntent,
+  supabaseAdmin: ReturnType<typeof createClient>
+) {
   const { error } = await supabaseAdmin
     .from('purchases')
     .update({
@@ -109,7 +130,10 @@ async function handlePaymentFailure(paymentIntent: Stripe.PaymentIntent) {
   console.log(`Payment failed for intent: ${paymentIntent.id}`)
 }
 
-async function handlePaymentCanceled(paymentIntent: Stripe.PaymentIntent) {
+async function handlePaymentCanceled(
+  paymentIntent: Stripe.PaymentIntent,
+  supabaseAdmin: ReturnType<typeof createClient>
+) {
   const { error } = await supabaseAdmin
     .from('purchases')
     .update({
