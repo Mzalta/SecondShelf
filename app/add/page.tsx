@@ -7,10 +7,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
+import { categorizeBook } from '@/lib/api/categorize'
 import FormInput from '@/components/features/forms/FormInput'
 import Button from '@/components/ui/Button'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { BookFormData } from '@/types'
+import { Sparkles } from 'lucide-react'
 
 const bookSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -18,7 +20,8 @@ const bookSchema = z.object({
   course: z.string().min(1, 'Course is required'),
   price: z.string().min(1, 'Price is required'),
   contact: z.string().min(1, 'Contact information is required'),
-  poster: z.string().min(1, 'Your name is required')
+  poster: z.string().min(1, 'Your name is required'),
+  category: z.string().optional()
 })
 
 export default function AddBookPage() {
@@ -26,15 +29,25 @@ export default function AddBookPage() {
   const { addListing, loading, error, setCurrentUser, fetchBooks, clearError } = useBookStore()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
+  const [isCategorizing, setIsCategorizing] = useState(false)
+  const [categorizeError, setCategorizeError] = useState<string | null>(null)
   
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-    reset
+    reset,
+    setValue,
+    watch
   } = useForm<BookFormData>({
     resolver: zodResolver(bookSchema)
   })
+  
+  // Watch title, author, and course for auto-categorization
+  const title = watch('title')
+  const author = watch('author')
+  const course = watch('course')
+  const category = watch('category')
   
   // Check authentication on mount
   useEffect(() => {
@@ -48,6 +61,45 @@ export default function AddBookPage() {
   const handleSignIn = async () => {
     await signInWithGoogle()
   }
+  
+  const handleCategorize = async () => {
+    if (!title || !author || !course) {
+      setCategorizeError('Please fill in title, author, and course first')
+      return
+    }
+    
+    setIsCategorizing(true)
+    setCategorizeError(null)
+    
+    try {
+      const suggestedCategory = await categorizeBook({
+        title: title.trim(),
+        author: author.trim(),
+        course: course.trim(),
+      })
+      setValue('category', suggestedCategory)
+    } catch (error: any) {
+      setCategorizeError(error.message || 'Failed to categorize book')
+      console.error('Error categorizing:', error)
+    } finally {
+      setIsCategorizing(false)
+    }
+  }
+  
+  // Auto-categorize when all three fields are filled (debounced)
+  useEffect(() => {
+    if (!title || !author || !course) return
+    
+    const timer = setTimeout(() => {
+      // Only auto-categorize if category is empty
+      if (!category) {
+        handleCategorize()
+      }
+    }, 1500) // Wait 1.5 seconds after user stops typing
+    
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, author, course])
   
   const onSubmit = async (data: BookFormData) => {
     try {
@@ -121,6 +173,41 @@ export default function AddBookPage() {
           error={errors.course?.message}
           {...register('course')}
         />
+        
+        {/* Category Field with Auto-Categorization */}
+        <div className="mb-4">
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
+            Category <span className="text-gray-500 text-xs">(Auto-filled)</span>
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              id="category"
+              {...register('category')}
+              placeholder="Category will be auto-suggested..."
+              readOnly
+              className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCategorize}
+              disabled={isCategorizing || !title || !author || !course}
+              className="flex items-center gap-2"
+            >
+              <Sparkles size={16} />
+              {isCategorizing ? 'Categorizing...' : 'Categorize'}
+            </Button>
+          </div>
+          {categorizeError && (
+            <p className="mt-1 text-sm text-red-600">{categorizeError}</p>
+          )}
+          {category && (
+            <p className="mt-1 text-sm text-green-600">
+              ✓ Category: {category}
+            </p>
+          )}
+        </div>
         
         <FormInput
           label="Price"

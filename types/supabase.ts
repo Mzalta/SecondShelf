@@ -11,6 +11,7 @@ export interface DatabaseBook {
   contact: string
   poster: string | null
   sold: boolean
+  category: string | null
   created_at: string
   updated_at: string
 }

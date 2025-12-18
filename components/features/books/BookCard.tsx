@@ -46,6 +46,9 @@ export default function BookCard({
         <div className="space-y-1 text-sm text-gray-600 mb-4">
           <p><strong>Author:</strong> {book.author}</p>
           <p><strong>Course:</strong> {book.course}</p>
+          {book.category && (
+            <p><strong>Category:</strong> <span className="text-blue-600 font-medium">{book.category}</span></p>
+          )}
           <p><strong>Price:</strong> {book.price}</p>
           {book.poster && (
             <p><strong>Posted by:</strong> {book.poster}</p>

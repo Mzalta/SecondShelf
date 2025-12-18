@@ -10,6 +10,7 @@ export interface Book {
   contact: string
   poster?: string
   sold?: boolean
+  category?: string
   createdAt?: string
   updatedAt?: string
 }
@@ -21,6 +22,7 @@ export interface BookFormData {
   price: string
   contact: string
   poster: string
+  category?: string
 }
 
 export interface Filters {

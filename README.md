@@ -1,144 +1,177 @@
-# 📚 SecondShelf
+# Supabase CLI
 
-A simple, local-focused web application that helps college students buy, sell, and trade used textbooks.
+[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
+](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
 
-## 🎯 Project Description
+[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
 
-SecondShelf is a vanilla JavaScript web application designed to solve a common problem for college students: finding affordable textbooks and being able to sell or trade books they no longer need. The application allows students to post listings for textbooks and browse listings from other students on campus, all without the complexity of traditional marketplace platforms.
+This repository contains all the functionality for Supabase CLI.
 
-## ✨ Features
+- [x] Running Supabase locally
+- [x] Managing database migrations
+- [x] Creating and deploying Supabase Functions
+- [x] Generating types directly from your database schema
+- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
 
-- **Add Book Listings**: Post your textbooks for sale or trade with course information and contact details
-- **Browse Listings**: View all available textbooks in a clean, card-based layout
-- **Search & Filter**: Find books quickly by title, author, or course
-- **Save Favorites**: Save interesting listings for later review
-- **Mark as Sold**: Update your listing status when a book is sold
+## Getting started
 
-## 🚀 Live Demo
+### Install the CLI
 
-**Deployed Link:** https://second-shelf.vercel.app/
+Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
 
-📄 [View Product Requirements Document](./projectDocs/SecondShelf-PRD.md)
-
-## 🛠️ Technology Stack
-
-- **HTML5** - Semantic structure
-- **CSS3** - Modern styling with responsive design
-- **Vanilla JavaScript** - No frameworks or external dependencies
-- **LocalStorage API** - Data persistence
-- **Vercel** - Deployment platform
-
-## 📁 Project Structure
-
-```
-/
-├── index.html              # Homepage with listings and search
-├── add.html               # Form for adding new books
-├── favorites.html         # Saved favorites page
-├── style.css              # Main stylesheet
-├── script.js              # JavaScript functionality
-├── projectDocs/           # Documentation folder
-│   └── SecondShelf-PRD.md   # Product Requirements Document
-└── README.md              # This file
-```
-
-## 🚦 Getting Started
-
-### Prerequisites
-
-- A modern web browser (Chrome, Firefox, Safari, Edge)
-- A code editor (optional, for local development)
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone [repository-url]
-cd SecondShelf
+npm i supabase --save-dev
 ```
 
-2. Open the project in your browser:
-   - Simply double-click `index.html` to open in your browser, OR
-   - Use a local development server (recommended):
-     ```bash
-     # Using Python 3
-     python -m http.server 8000
-     
-     # Using Node.js (if you have http-server installed)
-     npx http-server
-     ```
+When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
 
-3. Navigate to `http://localhost:8000` in your browser
+```
+NODE_OPTIONS=--no-experimental-fetch yarn add supabase
+```
 
-## 📖 Usage
+> **Note**
+For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
 
-1. **View Listings**: The homepage displays all available book listings
-2. **Add a Book**: Click "Add Book" in the navigation to post a new listing
-3. **Search**: Use the search bar to filter by title, author, or course
-4. **Save Favorites**: Click the star button on any listing to save it
-5. **Mark as Sold**: Click "Mark as Sold" when you've sold your book
+<details>
+  <summary><b>macOS</b></summary>
 
-## 🎨 Design Features
+  Available via [Homebrew](https://brew.sh). To install:
 
-- Clean, modern UI with a light blue color scheme
-- Responsive design that works on desktop and mobile
-- Card-based layout for easy browsing
-- Smooth hover effects and transitions
-- Clear visual indicators for sold items and favorites
+  ```sh
+  brew install supabase/tap/supabase
+  ```
 
-## 🔧 Development
+  To install the beta release channel:
+  
+  ```sh
+  brew install supabase/tap/supabase-beta
+  brew link --overwrite supabase-beta
+  ```
+  
+  To upgrade:
 
-### Key Files
+  ```sh
+  brew upgrade supabase
+  ```
+</details>
 
-- `index.html` - Main homepage layout
-- `add.html` - Book listing form
-- `favorites.html` - Favorites page
-- `style.css` - All styling and responsive design
-- `script.js` - All JavaScript functionality including:
-  - LocalStorage management
-  - DOM manipulation
-  - Search/filter logic
-  - Form handling
+<details>
+  <summary><b>Windows</b></summary>
 
-### Browser Compatibility
+  Available via [Scoop](https://scoop.sh). To install:
 
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-- Mobile browsers
+  ```powershell
+  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+  scoop install supabase
+  ```
 
-## 📝 Known Limitations
+  To upgrade:
 
-- Data is stored locally (localStorage) and will not persist across different devices
-- No authentication or user accounts
-- No image uploads (for MVP)
-- No messaging system between users
+  ```powershell
+  scoop update supabase
+  ```
+</details>
 
-## 🔮 Future Enhancements
+<details>
+  <summary><b>Linux</b></summary>
 
-- User authentication system
-- Photo uploads for book covers
-- Email notifications for new matches
-- Campus/location filtering
-- Rating and review system
-- Mobile app version
+  Available via [Homebrew](https://brew.sh) and Linux packages.
 
-## 👥 Contributing
+  #### via Homebrew
 
-This is a class assignment project. For questions or suggestions, please contact the project owner.
+  To install:
 
-## 📄 License
+  ```sh
+  brew install supabase/tap/supabase
+  ```
 
-This project is created for educational purposes as a class assignment.
+  To upgrade:
 
-## 🙏 Acknowledgments
+  ```sh
+  brew upgrade supabase
+  ```
 
-- Design inspired by modern marketplace interfaces
-- Built with vanilla JavaScript for learning purposes
-- Deployed on Vercel for easy access
+  #### via Linux packages
 
----
+  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
 
-**Last Updated:** December 2024  
-**Status:** MVP Complete
+  ```sh
+  sudo apk add --allow-untrusted <...>.apk
+  ```
+
+  ```sh
+  sudo dpkg -i <...>.deb
+  ```
+
+  ```sh
+  sudo rpm -i <...>.rpm
+  ```
+
+  ```sh
+  sudo pacman -U <...>.pkg.tar.zst
+  ```
+</details>
+
+<details>
+  <summary><b>Other Platforms</b></summary>
+
+  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
+
+  ```sh
+  go install github.com/supabase/cli@latest
+  ```
+
+  Add a symlink to the binary in `$PATH` for easier access:
+
+  ```sh
+  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
+  ```
+
+  This works on other non-standard Linux distros.
+</details>
+
+<details>
+  <summary><b>Community Maintained Packages</b></summary>
+
+  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
+  To install in your working directory:
+
+  ```bash
+  pkgx install supabase
+  ```
+
+  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
+</details>
+
+### Run the CLI
+
+```bash
+supabase bootstrap
+```
+
+Or using npx:
+
+```bash
+npx supabase bootstrap
+```
+
+The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
+
+## Docs
+
+Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
+
+## Breaking changes
+
+We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
+
+However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
+
+## Developing
+
+To run from source:
+
+```sh
+# Go >= 1.22
+go run . help
+```

@@ -31,9 +31,14 @@ coverage/
 *.tsbuildinfo
 .next-env.d.ts
 
+# CLI binaries
+.bin/
+*.tar.gz
 
 
 
 
 
 
+
+.vercel
