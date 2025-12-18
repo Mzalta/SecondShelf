@@ -8,7 +8,6 @@ import SearchBar from '@/components/features/search/SearchBar'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle, signOut } from '@/lib/auth/auth'
 import { createClient } from '@/lib/supabase/client'
-import { User } from 'lucide-react'
 
 export default function Header() {
   const router = useRouter()
@@ -93,32 +92,21 @@ export default function Header() {
               />
             </div>
 
-            {/* Account & Auth - simplified to one clickable item each */}
+            {/* Account & Auth */}
             <div className="flex-shrink-0 flex items-center gap-4">
               {loading ? (
                 <span className="text-xs opacity-75">Loading...</span>
               ) : currentUser ? (
                 <>
-                  <Link 
-                    href="/favorites" 
-                    className="flex flex-col items-start hover:text-orange-400 transition-colors no-underline"
-                  >
-                    <span className="text-xs text-gray-300">Favorites</span>
-                    <span className="text-sm font-semibold">Saved</span>
-                  </Link>
-                  <Link 
-                    href="/my-shelf"
-                    className="flex flex-col items-start hover:text-orange-400 transition-colors no-underline"
-                  >
-                    <span className="text-xs text-gray-300">Account</span>
-                    <span className="text-sm font-semibold flex items-center gap-1">
-                      <User size={16} />
-                      My Shelf
+                  <div className="flex flex-col items-start">
+                    <span className="text-xs text-gray-300">Hello,</span>
+                    <span className="text-sm font-semibold">
+                      {currentUser.email?.split('@')[0] || currentUser.user_metadata?.name || 'User'}
                     </span>
-                  </Link>
+                  </div>
                   <button
                     onClick={handleSignOut}
-                    className="text-xs hover:text-orange-400 transition-colors bg-transparent border-0 cursor-pointer text-white"
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded transition-colors"
                   >
                     Sign Out
                   </button>
