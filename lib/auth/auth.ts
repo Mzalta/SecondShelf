@@ -6,7 +6,10 @@ export async function signInWithGoogle() {
     const supabase = createClient()
     
     // Get the current origin (works for both localhost and production)
-    const redirectTo = `${window.location.origin}/auth/callback`
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const redirectTo = origin ? `${origin}/auth/callback` : 'https://second-shelf.vercel.app/auth/callback'
+    
+    console.log('OAuth redirect URL:', redirectTo)
     
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
