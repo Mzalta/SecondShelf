@@ -179,7 +179,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     throw error
   }
 
-  console.log(`Invoice payment failed for subscription: ${invoice.subscription}`)
+  console.log(`Invoice payment failed for subscription: ${subscriptionId}`)
 }
 
 async function upsertSubscription(
