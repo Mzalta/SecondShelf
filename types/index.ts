@@ -33,6 +33,19 @@ export interface Filters {
   condition?: string
 }
 
+export interface Purchase {
+  id: string
+  userId: string
+  bookId: string
+  stripePaymentIntentId: string
+  stripeCustomerId: string
+  amount: number
+  currency: string
+  status: 'pending' | 'succeeded' | 'failed' | 'canceled'
+  createdAt: string
+  book?: Book
+}
+
 export interface Subscription {
   id: string
   userId: string
