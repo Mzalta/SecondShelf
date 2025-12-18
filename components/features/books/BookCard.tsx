@@ -1,11 +1,8 @@
 'use client'
 
-import { useState } from 'react'
 import { Book } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import CheckoutDialog from '@/components/features/payments/CheckoutDialog'
-import { useBookStore } from '@/lib/store/useBookStore'
 
 interface BookCardProps {
   book: Book
@@ -24,22 +21,6 @@ export default function BookCard({
   onMarkAsSold,
   onDelete
 }: BookCardProps) {
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
-  const { currentUser, fetchBooks } = useBookStore()
-
-  const handleBuyClick = () => {
-    if (!currentUser) {
-      alert('Please sign in to purchase books')
-      return
-    }
-    setIsCheckoutOpen(true)
-  }
-
-  const handleCheckoutSuccess = () => {
-    setIsCheckoutOpen(false)
-    // Refresh the book list to update sold status
-    fetchBooks()
-  }
 
   return (
     <>
@@ -74,15 +55,6 @@ export default function BookCard({
           >
             {isFavorite ? '★ Saved' : '☆ Save to Favorites'}
           </Button>
-          {!isOwner && !book.sold && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleBuyClick}
-            >
-              Buy Now
-            </Button>
-          )}
           {isOwner && onMarkAsSold && !book.sold && (
             <Button
               variant="danger"
@@ -107,12 +79,6 @@ export default function BookCard({
           )}
         </div>
       </Card>
-      <CheckoutDialog
-        book={book}
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        onSuccess={handleCheckoutSuccess}
-      />
     </>
   )
 }
