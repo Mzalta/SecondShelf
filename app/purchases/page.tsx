@@ -105,7 +105,7 @@ export default function PurchasesPage() {
       {purchases.length === 0 ? (
         <Card>
           <div className="text-center py-8">
-            <p className="text-gray-600 mb-4">You haven't made any purchases yet.</p>
+            <p className="text-gray-600 mb-4">You haven&apos;t made any purchases yet.</p>
             <a
               href="/"
               className="text-purple-600 hover:text-purple-800 font-semibold"
