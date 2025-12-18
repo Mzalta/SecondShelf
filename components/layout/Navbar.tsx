@@ -9,7 +9,6 @@ export default function Navbar() {
   
   const navLinks = [
     { href: '/', label: 'All Books' },
-    { href: '/add', label: 'Sell Your Book' },
     { href: '/my-shelf', label: 'My Shelf' },
     { href: '/favorites', label: 'Favorites' }
   ]

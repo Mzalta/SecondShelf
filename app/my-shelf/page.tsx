@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
 import BookList from '@/components/features/books/BookList'
@@ -8,6 +9,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import Loading from '@/components/ui/Loading'
 import Button from '@/components/ui/Button'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
+import { Plus } from 'lucide-react'
 
 export default function MyShelfPage() {
   const { 
@@ -100,11 +102,19 @@ export default function MyShelfPage() {
   return (
     <section>
       {/* Header Section */}
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold mb-2">My Shelf</h2>
-        <p className="text-gray-600">
-          Manage all the books you&apos;ve listed on SecondShelf
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold mb-2">My Shelf</h2>
+          <p className="text-gray-600">
+            Manage all the books you&apos;ve listed on SecondShelf
+          </p>
+        </div>
+        <Link href="/add">
+          <Button variant="primary" className="flex items-center gap-2">
+            <Plus size={18} />
+            Sell Your Book
+          </Button>
+        </Link>
       </div>
 
       {/* Error Message */}
