@@ -32,28 +32,47 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Define the categories we want to use
+    // Define the categories we want to use - comprehensive list of college subjects
     const categories = [
       'STEM - Computer Science',
       'STEM - Mathematics',
       'STEM - Engineering',
-      'STEM - Natural Sciences',
+      'STEM - Physics',
+      'STEM - Chemistry',
+      'STEM - Biology',
       'STEM - Health Sciences',
+      'STEM - Medicine',
+      'STEM - Nursing',
+      'STEM - Environmental Science',
       'Humanities - Literature',
       'Humanities - History',
       'Humanities - Philosophy',
       'Humanities - Languages',
+      'Humanities - Religious Studies',
+      'Humanities - Classics',
       'Social Sciences - Psychology',
       'Social Sciences - Sociology',
       'Social Sciences - Economics',
       'Social Sciences - Political Science',
+      'Social Sciences - Anthropology',
+      'Social Sciences - Geography',
+      'Social Sciences - Criminology',
       'Business - Management',
       'Business - Finance',
       'Business - Marketing',
+      'Business - Accounting',
+      'Business - Entrepreneurship',
       'Arts - Visual Arts',
       'Arts - Performing Arts',
+      'Arts - Music',
+      'Arts - Film Studies',
+      'Arts - Design',
       'Education',
-      'Other'
+      'Law',
+      'Communications',
+      'Journalism',
+      'Architecture',
+      'Public Health'
     ]
 
     // Create the prompt for OpenAI
@@ -66,7 +85,7 @@ Course: ${course}
 Categories:
 ${categories.map((cat, idx) => `${idx + 1}. ${cat}`).join('\n')}
 
-Respond with ONLY the category name from the list above. Do not include any explanation or additional text.`
+You must select one of the categories listed above. Do not use "Other" or create new categories. Respond with ONLY the exact category name from the list above. Do not include any explanation or additional text.`
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
@@ -74,7 +93,7 @@ Respond with ONLY the category name from the list above. Do not include any expl
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful assistant that categorizes academic textbooks into predefined categories. Always respond with only the category name from the provided list.',
+          content: 'You are a helpful assistant that categorizes academic textbooks into predefined categories. You must select one of the provided categories - never use "Other" or create new categories. Always respond with only the exact category name from the provided list.',
         },
         {
           role: 'user',
@@ -95,9 +114,12 @@ Respond with ONLY the category name from the list above. Do not include any expl
     }
 
     // Validate that the category is in our list
+    // If not found, try to find the closest match or use the first category as fallback
     const validCategory = categories.find(
       (cat) => cat.toLowerCase() === category.toLowerCase()
-    ) || 'Other'
+    ) || categories.find(
+      (cat) => category.toLowerCase().includes(cat.toLowerCase()) || cat.toLowerCase().includes(category.toLowerCase())
+    ) || categories[0] // Fallback to first category if no match found
 
     return NextResponse.json({
       category: validCategory,
