@@ -103,7 +103,7 @@ export default function MyShelfPage() {
       <div className="mb-8">
         <h2 className="text-3xl font-bold mb-2">My Shelf</h2>
         <p className="text-gray-600">
-          Manage all the books you've listed on SecondShelf
+          Manage all the books you&apos;ve listed on SecondShelf
         </p>
       </div>
 
