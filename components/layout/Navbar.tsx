@@ -8,32 +8,33 @@ export default function Navbar() {
   const pathname = usePathname()
   
   const navLinks = [
-    { href: '/', label: 'Home' },
-    { href: '/add', label: 'Add Book' },
+    { href: '/', label: 'All Books' },
+    { href: '/add', label: 'Sell Your Book' },
     { href: '/my-shelf', label: 'My Shelf' },
-    { href: '/favorites', label: 'Favorites' },
-    { href: '/subscription', label: 'Subscription' }
+    { href: '/favorites', label: 'Favorites' }
   ]
   
   return (
-    <ul className="flex gap-4 sm:gap-8 list-none">
-      {navLinks.map((link) => {
-        const isActive = pathname === link.href
-        return (
-          <li key={link.href}>
-            <Link
-              href={link.href}
-              className={clsx(
-                'text-white no-underline font-medium transition-opacity duration-200',
-                'hover:opacity-80',
-                isActive && 'underline underline-offset-4 decoration-2'
-              )}
-            >
-              {link.label}
-            </Link>
-          </li>
-        )
-      })}
-    </ul>
+    <nav className="py-2">
+      <ul className="flex gap-6 sm:gap-8 list-none">
+        {navLinks.map((link) => {
+          const isActive = pathname === link.href
+          return (
+            <li key={link.href}>
+              <Link
+                href={link.href}
+                className={clsx(
+                  'text-white no-underline text-sm font-medium transition-colors duration-200',
+                  'hover:text-orange-400',
+                  isActive && 'text-orange-400 border-b-2 border-orange-400 pb-1'
+                )}
+              >
+                {link.label}
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
   )
 }

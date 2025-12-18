@@ -25,21 +25,27 @@ export default function SearchBar({
   }, [query, onSearch, debounceMs])
   
   return (
-    <div className="relative max-w-2xl mx-auto mb-4">
+    <div className="relative w-full">
       <label htmlFor="search-input" className="sr-only">
         Search for books
       </label>
-      <input
-        type="text"
-        id="search-input"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-4 py-3 pr-12 text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
-      />
-      <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400">
-        <Search size={20} />
-      </span>
+      <div className="flex">
+        <input
+          type="text"
+          id="search-input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 px-4 py-2.5 text-sm text-gray-900 rounded-l-md border-0 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+        <button
+          type="button"
+          className="px-4 bg-orange-400 hover:bg-orange-500 text-gray-900 rounded-r-md transition-colors flex items-center justify-center"
+          onClick={() => onSearch(query)}
+        >
+          <Search size={20} />
+        </button>
+      </div>
     </div>
   )
 }

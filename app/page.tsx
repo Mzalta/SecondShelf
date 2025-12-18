@@ -1,15 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { useSearch } from '@/lib/hooks/useSearch'
 import BookList from '@/components/features/books/BookList'
-import SearchBar from '@/components/features/search/SearchBar'
 import ResultsCount from '@/components/features/search/ResultsCount'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { getCurrentUser } from '@/lib/auth/auth'
+import Link from 'next/link'
+import { Plus } from 'lucide-react'
 
 export default function HomePage() {
+  const searchParams = useSearchParams()
   const { 
     listings, 
     favoriteIds, 
@@ -27,6 +30,12 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const filteredBooks = useSearch(listings, searchQuery)
   
+  // Get search query from URL params
+  useEffect(() => {
+    const searchParam = searchParams.get('search') || ''
+    setSearchQuery(searchParam)
+  }, [searchParams])
+  
   // Fetch books and user on mount
   useEffect(() => {
     fetchBooks()
@@ -42,15 +51,7 @@ export default function HomePage() {
   }, [])
   
   return (
-    <>
-      {/* Hero Section */}
-      <section className="text-center py-12 px-4 mb-8 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-lg">
-        <h2 className="text-4xl font-bold mb-4">Trade & Sell Your Textbooks</h2>
-        <p className="text-xl opacity-90">
-          Connect with students on campus to find the books you need at affordable prices
-        </p>
-      </section>
-
+    <div className="min-h-screen bg-gray-50">
       {/* Error Message */}
       <ErrorDisplay
         error={error}
@@ -58,15 +59,38 @@ export default function HomePage() {
         autoDismiss={true}
       />
 
-      {/* Search Section */}
-      <section className="mb-8">
-        <SearchBar onSearch={setSearchQuery} />
-        <ResultsCount count={filteredBooks.length} total={listings.length} />
-      </section>
+      {/* Breadcrumb & Action Bar */}
+      <div className="bg-white border-b border-gray-200 mb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <nav className="text-sm text-gray-500 mb-2">
+                <Link href="/" className="hover:text-orange-600">Home</Link>
+                <span className="mx-2">/</span>
+                <span className="text-gray-900 font-medium">Textbooks</span>
+              </nav>
+              <h1 className="text-2xl font-bold text-gray-900">Textbook Marketplace</h1>
+            </div>
+            <Link
+              href="/add"
+              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              <Plus size={18} />
+              List Your Book
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Results Count & Filters */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+        <div className="flex items-center justify-between">
+          <ResultsCount count={filteredBooks.length} total={listings.length} />
+        </div>
+      </div>
 
       {/* Book Listings Section */}
-      <section>
-        <h2 className="text-3xl font-bold mb-6">Available Textbooks</h2>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <BookList
           books={filteredBooks}
           favoriteIds={favoriteIds}
@@ -76,7 +100,7 @@ export default function HomePage() {
           onMarkAsSold={markAsSold}
           onDelete={removeListing}
         />
-      </section>
-    </>
+      </div>
+    </div>
   )
 }
