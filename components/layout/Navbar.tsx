@@ -10,6 +10,7 @@ export default function Navbar() {
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/add', label: 'Add Book' },
+    { href: '/my-shelf', label: 'My Shelf' },
     { href: '/favorites', label: 'Favorites' },
     { href: '/subscription', label: 'Subscription' }
   ]

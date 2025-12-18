@@ -8,6 +8,7 @@ import { handleApiError } from '@/lib/api/errors'
 interface BookStore {
   // State
   listings: Book[]
+  myBooks: Book[] // User's own listings
   favoriteIds: Set<string> // Changed from number[] to Set<string> for ID-based favorites
   currentUser: User | null
   loading: boolean
@@ -15,6 +16,7 @@ interface BookStore {
   
   // Actions
   fetchBooks: () => Promise<void>
+  fetchMyBooks: () => Promise<void>
   fetchFavorites: () => Promise<void>
   addListing: (bookData: BookFormData) => Promise<void>
   removeListing: (id: string) => Promise<void>
@@ -29,6 +31,7 @@ interface BookStore {
 export const useBookStore = create<BookStore>((set, get) => ({
   // Initial state
   listings: [],
+  myBooks: [],
   favoriteIds: new Set<string>(),
   currentUser: null,
   loading: false,
@@ -44,6 +47,25 @@ export const useBookStore = create<BookStore>((set, get) => ({
       const errorMessage = handleApiError(error)
       set({ error: errorMessage, loading: false })
       console.error('Error fetching books:', error)
+    }
+  },
+  
+  // Fetch current user's own books
+  fetchMyBooks: async () => {
+    const user = get().currentUser
+    if (!user) {
+      set({ myBooks: [], error: 'You must be signed in to view your listings' })
+      return
+    }
+    
+    set({ loading: true, error: null })
+    try {
+      const books = await booksApi.getBooksByUserId(user.id)
+      set({ myBooks: books, loading: false })
+    } catch (error) {
+      const errorMessage = handleApiError(error)
+      set({ error: errorMessage, loading: false, myBooks: [] })
+      console.error('Error fetching user books:', error)
     }
   },
   
@@ -70,6 +92,7 @@ export const useBookStore = create<BookStore>((set, get) => ({
       const newBook = await booksApi.createBook(bookData)
       set((state) => ({
         listings: [newBook, ...state.listings],
+        myBooks: [newBook, ...state.myBooks],
         loading: false
       }))
     } catch (error) {
@@ -86,6 +109,7 @@ export const useBookStore = create<BookStore>((set, get) => ({
       await booksApi.deleteBook(id)
       set((state) => ({
         listings: state.listings.filter((book) => book.id !== id),
+        myBooks: state.myBooks.filter((book) => book.id !== id),
         favoriteIds: new Set(
           Array.from(state.favoriteIds).filter((favId) => favId !== id)
         )
@@ -127,6 +151,7 @@ export const useBookStore = create<BookStore>((set, get) => ({
       await booksApi.markAsSold(id)
       set((state) => ({
         listings: state.listings.filter((book) => book.id !== id),
+        myBooks: state.myBooks.filter((book) => book.id !== id),
         favoriteIds: new Set(
           Array.from(state.favoriteIds).filter((favId) => favId !== id)
         )

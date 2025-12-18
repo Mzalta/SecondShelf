@@ -292,3 +292,47 @@ export async function searchBooks(filters: Filters): Promise<Book[]> {
   return data.map(dbBookToBook)
 }
 
+/**
+ * Fetch books by a specific user ID
+ * Requires authentication
+ */
+export async function getBooksByUserId(userId: string): Promise<Book[]> {
+  if (!userId) {
+    throw new Error('User ID is required')
+  }
+  
+  const supabase = createClient()
+  
+  // Get current user to verify they're requesting their own books
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+  
+  if (userError || !user) {
+    throw new Error('You must be signed in to view your listings')
+  }
+  
+  // Only allow users to fetch their own books
+  if (user.id !== userId) {
+    throw new Error('You can only view your own listings')
+  }
+  
+  const { data, error } = await supabase
+    .from('books')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  
+  if (error) {
+    console.error('Error fetching user books:', error)
+    throw new Error(`Failed to fetch your listings: ${error.message}`)
+  }
+  
+  if (!data) {
+    return []
+  }
+  
+  return data.map(dbBookToBook)
+}
+
