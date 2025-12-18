@@ -28,12 +28,24 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const filteredBooks = useSearch(listings, searchQuery)
   
-  // Get search query from URL params
+  // Get search query from URL params and update on navigation
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const searchParam = params.get('search') || ''
-      setSearchQuery(searchParam)
+    const updateSearchFromURL = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search)
+        const searchParam = params.get('search') || ''
+        setSearchQuery(searchParam)
+      }
+    }
+    
+    // Initial load
+    updateSearchFromURL()
+    
+    // Listen for navigation changes
+    window.addEventListener('popstate', updateSearchFromURL)
+    
+    return () => {
+      window.removeEventListener('popstate', updateSearchFromURL)
     }
   }, [])
   

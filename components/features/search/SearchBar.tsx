@@ -1,31 +1,35 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, KeyboardEvent } from 'react'
 import { Search } from 'lucide-react'
 
 interface SearchBarProps {
   onSearch: (query: string) => void
   placeholder?: string
-  debounceMs?: number
+  initialValue?: string
 }
 
 export default function SearchBar({
   onSearch,
   placeholder = 'Search by title, author, or course...',
-  debounceMs = 300
+  initialValue = ''
 }: SearchBarProps) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialValue)
   
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onSearch(query)
-    }, debounceMs)
-    
-    return () => clearTimeout(timer)
-  }, [query, onSearch, debounceMs])
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault()
+    onSearch(query)
+  }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
   
   return (
-    <div className="relative w-full">
+    <form onSubmit={handleSubmit} className="relative w-full">
       <label htmlFor="search-input" className="sr-only">
         Search for books
       </label>
@@ -35,17 +39,17 @@ export default function SearchBar({
           id="search-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="flex-1 px-4 py-2.5 text-sm text-gray-900 rounded-l-md border-0 focus:outline-none focus:ring-2 focus:ring-orange-400"
         />
         <button
-          type="button"
+          type="submit"
           className="px-4 bg-orange-400 hover:bg-orange-500 text-gray-900 rounded-r-md transition-colors flex items-center justify-center"
-          onClick={() => onSearch(query)}
         >
           <Search size={20} />
         </button>
       </div>
-    </div>
+    </form>
   )
 }

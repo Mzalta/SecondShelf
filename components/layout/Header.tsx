@@ -68,55 +68,18 @@ export default function Header() {
   }
 
   const handleSearch = (query: string) => {
-    // Navigate to home with search query
+    // Always navigate to home page with search query
     router.push(`/?search=${encodeURIComponent(query)}`)
   }
 
   return (
     <header className="bg-[rgb(35,47,62)] text-white">
-      {/* Top bar */}
-      <div className="bg-[rgb(19,25,33)] border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-10 text-sm">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="hover:text-orange-400 transition-colors">
-                📚 SecondShelf
-              </Link>
-            </div>
-            <div className="flex items-center gap-4">
-              {loading ? (
-                <span className="text-xs opacity-75">Loading...</span>
-              ) : currentUser ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs hidden sm:inline text-gray-300">
-                    {currentUser.email || currentUser.user_metadata?.name || 'User'}
-                  </span>
-                  <button
-                    onClick={handleSignOut}
-                    className="text-xs hover:text-orange-400 transition-colors"
-                  >
-                    Sign Out
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleSignIn}
-                  className="text-xs hover:text-orange-400 transition-colors"
-                >
-                  Sign In
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main header with logo, search, and nav */}
       <div className="bg-[rgb(35,47,62)] py-3">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
-            {/* Logo */}
-            <Link href="/" className="flex-shrink-0">
+            {/* Logo - only one clickable logo */}
+            <Link href="/" className="flex-shrink-0 no-underline">
               <h1 className="text-2xl font-bold text-white hover:text-orange-400 transition-colors">
                 📚 SecondShelf
               </h1>
@@ -130,28 +93,44 @@ export default function Header() {
               />
             </div>
 
-            {/* Account & Cart */}
+            {/* Account & Auth - simplified to one clickable item each */}
             <div className="flex-shrink-0 flex items-center gap-4">
-              {currentUser && (
-                <Link 
-                  href="/favorites" 
-                  className="flex flex-col items-start hover:text-orange-400 transition-colors"
+              {loading ? (
+                <span className="text-xs opacity-75">Loading...</span>
+              ) : currentUser ? (
+                <>
+                  <Link 
+                    href="/favorites" 
+                    className="flex flex-col items-start hover:text-orange-400 transition-colors no-underline"
+                  >
+                    <span className="text-xs text-gray-300">Favorites</span>
+                    <span className="text-sm font-semibold">Saved</span>
+                  </Link>
+                  <Link 
+                    href="/my-shelf"
+                    className="flex flex-col items-start hover:text-orange-400 transition-colors no-underline"
+                  >
+                    <span className="text-xs text-gray-300">Account</span>
+                    <span className="text-sm font-semibold flex items-center gap-1">
+                      <User size={16} />
+                      My Shelf
+                    </span>
+                  </Link>
+                  <button
+                    onClick={handleSignOut}
+                    className="text-xs hover:text-orange-400 transition-colors bg-transparent border-0 cursor-pointer text-white"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleSignIn}
+                  className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded transition-colors"
                 >
-                  <span className="text-xs text-gray-300">Favorites</span>
-                  <span className="text-sm font-semibold">Saved</span>
-                </Link>
+                  Sign In
+                </button>
               )}
-              <Link 
-                href={currentUser ? "/my-shelf" : "#"} 
-                onClick={!currentUser ? handleSignIn : undefined}
-                className="flex flex-col items-start hover:text-orange-400 transition-colors"
-              >
-                <span className="text-xs text-gray-300">Account</span>
-                <span className="text-sm font-semibold flex items-center gap-1">
-                  <User size={16} />
-                  {currentUser ? 'My Shelf' : 'Sign In'}
-                </span>
-              </Link>
             </div>
           </div>
         </div>
