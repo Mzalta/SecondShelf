@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { useSearch } from '@/lib/hooks/useSearch'
 import BookList from '@/components/features/books/BookList'
@@ -12,7 +11,6 @@ import Link from 'next/link'
 import { Plus } from 'lucide-react'
 
 export default function HomePage() {
-  const searchParams = useSearchParams()
   const { 
     listings, 
     favoriteIds, 
@@ -32,9 +30,12 @@ export default function HomePage() {
   
   // Get search query from URL params
   useEffect(() => {
-    const searchParam = searchParams.get('search') || ''
-    setSearchQuery(searchParam)
-  }, [searchParams])
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const searchParam = params.get('search') || ''
+      setSearchQuery(searchParam)
+    }
+  }, [])
   
   // Fetch books and user on mount
   useEffect(() => {
