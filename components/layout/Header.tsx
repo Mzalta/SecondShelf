@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from './Navbar'
 import { useBookStore } from '@/lib/store/useBookStore'
@@ -9,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 
 export default function Header() {
+  const router = useRouter()
   const { currentUser, setCurrentUser } = useBookStore()
   const [loading, setLoading] = useState(true)
 
@@ -54,6 +56,8 @@ export default function Header() {
   const handleSignOut = async () => {
     await signOut()
     setCurrentUser(null)
+    // Redirect to home page after sign out
+    router.push('/')
   }
 
   return (
