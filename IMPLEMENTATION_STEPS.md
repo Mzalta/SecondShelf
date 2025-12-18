@@ -1,3 +1,4 @@
+
 # Step-by-Step Implementation: OpenAI Auto-Categorization
 
 ## Quick Start Checklist

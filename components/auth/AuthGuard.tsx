@@ -34,10 +34,20 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
   const handleSignIn = async () => {
     try {
-      await signInWithGoogle()
-      // The redirect will happen automatically via OAuth
-    } catch (error) {
+      setLoading(true)
+      const { error } = await signInWithGoogle()
+      if (error) {
+        console.error('Sign in error:', error)
+        const errorMessage = (error as any)?.message || String(error) || 'Unknown error'
+        alert(`Sign in failed: ${errorMessage}`)
+        setLoading(false)
+      }
+      // If successful, the redirect will happen automatically via OAuth
+    } catch (error: unknown) {
       console.error('Sign in error:', error)
+      const errorMessage = error instanceof Error ? error.message : String(error) || 'Please check your browser console for details.'
+      alert(`Sign in failed: ${errorMessage}`)
+      setLoading(false)
     }
   }
 
