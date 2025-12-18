@@ -163,7 +163,8 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-  if (!invoice.subscription) return
+  const subscriptionId = (invoice as any).subscription
+  if (!subscriptionId || typeof subscriptionId !== 'string') return
 
   const { error } = await supabaseAdmin
     .from('subscriptions')
