@@ -141,10 +141,14 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 }
 
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  if (!invoice.subscription) return
+  const subscriptionId = typeof invoice.subscription === 'string' 
+    ? invoice.subscription 
+    : invoice.subscription?.id
+  
+  if (!subscriptionId) return
 
   const subscription = await stripe.subscriptions.retrieve(
-    invoice.subscription as string
+    subscriptionId
   )
 
   const { data: existingSub } = await supabaseAdmin
