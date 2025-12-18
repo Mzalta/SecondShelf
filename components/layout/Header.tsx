@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from './Navbar'
@@ -8,11 +8,14 @@ import SearchBar from '@/components/features/search/SearchBar'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle, signOut } from '@/lib/auth/auth'
 import { createClient } from '@/lib/supabase/client'
+import { ChevronDown } from 'lucide-react'
 
 export default function Header() {
   const router = useRouter()
   const { currentUser, setCurrentUser } = useBookStore()
   const [loading, setLoading] = useState(true)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const accountMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Check for authenticated user on mount
@@ -33,6 +36,23 @@ export default function Header() {
       subscription.unsubscribe()
     }
   }, [setCurrentUser])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false)
+      }
+    }
+
+    if (accountMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [accountMenuOpen])
 
   const handleSignIn = async () => {
     try {
@@ -97,20 +117,43 @@ export default function Header() {
               {loading ? (
                 <span className="text-xs opacity-75">Loading...</span>
               ) : currentUser ? (
-                <>
-                  <div className="flex flex-col items-start">
-                    <span className="text-xs text-gray-300">Hello,</span>
-                    <span className="text-sm font-semibold">
-                      {currentUser.email?.split('@')[0] || currentUser.user_metadata?.name || 'User'}
-                    </span>
-                  </div>
+                <div className="relative" ref={accountMenuRef}>
                   <button
-                    onClick={handleSignOut}
-                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded transition-colors"
+                    onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded transition-colors"
                   >
-                    Sign Out
+                    <div className="flex flex-col items-start">
+                      <span className="text-xs text-gray-300">Hello,</span>
+                      <span className="text-sm font-semibold">
+                        {currentUser.email?.split('@')[0] || currentUser.user_metadata?.name || 'User'}
+                      </span>
+                    </div>
+                    <ChevronDown size={16} className={`transition-transform duration-200 ${accountMenuOpen ? 'rotate-180' : ''}`} />
                   </button>
-                </>
+                  
+                  {/* Dropdown Menu */}
+                  {accountMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
+                      <Link
+                        href="/subscription"
+                        onClick={() => setAccountMenuOpen(false)}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 no-underline transition-colors"
+                      >
+                        Upgrade to Pro
+                      </Link>
+                      <div className="border-t border-gray-200 my-1"></div>
+                      <button
+                        onClick={() => {
+                          setAccountMenuOpen(false)
+                          handleSignOut()
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 bg-transparent border-0 cursor-pointer transition-colors"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <button
                   onClick={handleSignIn}
