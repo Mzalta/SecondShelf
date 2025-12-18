@@ -13,6 +13,7 @@ interface BookCardProps {
   isOwner?: boolean
   onToggleFavorite: () => void
   onMarkAsSold?: () => void
+  onDelete?: () => void
 }
 
 export default function BookCard({
@@ -20,7 +21,8 @@ export default function BookCard({
   isFavorite = false,
   isOwner = false,
   onToggleFavorite,
-  onMarkAsSold
+  onMarkAsSold,
+  onDelete
 }: BookCardProps) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const { currentUser, fetchBooks } = useBookStore()
@@ -88,6 +90,19 @@ export default function BookCard({
               onClick={onMarkAsSold}
             >
               Mark as Sold
+            </Button>
+          )}
+          {isOwner && onDelete && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                if (confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
+                  onDelete()
+                }
+              }}
+            >
+              Delete
             </Button>
           )}
         </div>

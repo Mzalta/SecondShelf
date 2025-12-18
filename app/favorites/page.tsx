@@ -18,6 +18,7 @@ export default function FavoritesPage() {
     loading,
     toggleFavorite, 
     markAsSold,
+    removeListing,
     setCurrentUser,
     fetchFavorites
   } = useBookStore()
@@ -50,6 +51,17 @@ export default function FavoritesPage() {
   
   const handleSignIn = async () => {
     await signInWithGoogle()
+  }
+  
+  const handleDelete = async (bookId: string) => {
+    try {
+      await removeListing(bookId)
+      // Refresh favorites list after deletion
+      const favorites = await getFavoriteBooks()
+      setFavoriteBooks(favorites)
+    } catch (error) {
+      console.error('Error deleting book:', error)
+    }
   }
   
   if (checkingAuth || loadingFavorites) {
@@ -113,6 +125,7 @@ export default function FavoritesPage() {
               isOwner={isOwner}
               onToggleFavorite={() => toggleFavorite(book.id!)}
               onMarkAsSold={isOwner ? () => markAsSold(book.id!) : undefined}
+              onDelete={isOwner ? () => handleDelete(book.id!) : undefined}
             />
           )
         })}

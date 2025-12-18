@@ -20,6 +20,7 @@ export default function HomePage() {
     fetchFavorites,
     toggleFavorite, 
     markAsSold,
+    removeListing,
     setCurrentUser,
     clearError
   } = useBookStore()
@@ -73,6 +74,7 @@ export default function HomePage() {
           isLoading={loading}
           onToggleFavorite={toggleFavorite}
           onMarkAsSold={markAsSold}
+          onDelete={removeListing}
         />
       </section>
     </>

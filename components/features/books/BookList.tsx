@@ -15,6 +15,7 @@ interface BookListProps {
   isLoading?: boolean
   onToggleFavorite: (bookId: string) => void
   onMarkAsSold?: (bookId: string) => void
+  onDelete?: (bookId: string) => void
 }
 
 export default function BookList({
@@ -23,7 +24,8 @@ export default function BookList({
   currentUser,
   isLoading = false,
   onToggleFavorite,
-  onMarkAsSold
+  onMarkAsSold,
+  onDelete
 }: BookListProps) {
   if (isLoading) {
     return <Loading />
@@ -56,6 +58,7 @@ export default function BookList({
             isOwner={isOwner}
             onToggleFavorite={() => onToggleFavorite(book.id!)}
             onMarkAsSold={isOwner && onMarkAsSold ? () => onMarkAsSold(book.id!) : undefined}
+            onDelete={isOwner && onDelete ? () => onDelete(book.id!) : undefined}
           />
         )
       })}
