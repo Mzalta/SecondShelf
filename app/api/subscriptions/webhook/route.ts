@@ -141,9 +141,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 }
 
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  // In newer Stripe API, subscription is accessed via subscription_details
-  const subscriptionId = invoice.subscription_details?.metadata?.subscription_id 
-    || (invoice as any).subscription
+  // Access subscription property with type assertion for API compatibility
+  const subscriptionId = (invoice as any).subscription
   
   if (!subscriptionId || typeof subscriptionId !== 'string') return
 
