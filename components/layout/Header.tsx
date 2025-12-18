@@ -54,10 +54,16 @@ export default function Header() {
   }
 
   const handleSignOut = async () => {
-    await signOut()
-    setCurrentUser(null)
-    // Redirect to home page after sign out
-    router.push('/')
+    try {
+      await signOut()
+      setCurrentUser(null)
+      // Use window.location for a full page reload to ensure state is cleared
+      window.location.href = '/'
+    } catch (error) {
+      console.error('Sign out error:', error)
+      // Even if there's an error, try to redirect
+      window.location.href = '/'
+    }
   }
 
   return (
