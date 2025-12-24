@@ -5,9 +5,11 @@
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-rgb: 255, 255, 255;
-  --header-bg: 35, 47, 62;
-  --header-secondary: 19, 25, 33;
-  --accent-orange: 255, 153, 0;
+  --header-bg: 30, 58, 82;
+  --header-secondary: 20, 37, 52;
+  --accent-purple: 139, 92, 246;
+  --accent-purple-dark: 124, 58, 237;
+  --accent-teal: 13, 148, 136;
   --border-gray: 221, 221, 221;
 }
 

@@ -78,7 +78,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div>
               <nav className="text-sm text-gray-500 mb-2">
-                <Link href="/" className="hover:text-orange-600">Home</Link>
+                <Link href="/" className="hover:text-purple-600">Home</Link>
                 <span className="mx-2">/</span>
                 <span className="text-gray-900 font-medium">Textbooks</span>
               </nav>
@@ -86,7 +86,7 @@ export default function HomePage() {
             </div>
             <Link
               href="/add"
-              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
             >
               <Plus size={18} />
               List Your Book

@@ -92,14 +92,14 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-[rgb(35,47,62)] text-white">
+    <header className="bg-[rgb(30,58,82)] text-white">
       {/* Main header with logo, search, and nav */}
-      <div className="bg-[rgb(35,47,62)] py-3">
+      <div className="bg-[rgb(30,58,82)] py-3">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
             {/* Logo - only one clickable logo */}
             <Link href="/" className="flex-shrink-0 no-underline">
-              <h1 className="text-2xl font-bold text-white hover:text-orange-400 transition-colors">
+              <h1 className="text-2xl font-bold text-white hover:text-purple-300 transition-colors">
                 📚 SecondShelf
               </h1>
             </Link>
@@ -157,7 +157,7 @@ export default function Header() {
               ) : (
                 <button
                   onClick={handleSignIn}
-                  className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded transition-colors"
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded transition-colors"
                 >
                   Sign In
                 </button>
@@ -168,7 +168,7 @@ export default function Header() {
       </div>
 
       {/* Navigation */}
-      <div className="bg-[rgb(35,47,62)] border-t border-gray-700">
+      <div className="bg-[rgb(30,58,82)] border-t border-teal-700/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Navbar />
         </div>

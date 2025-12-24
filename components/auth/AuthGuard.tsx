@@ -61,7 +61,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-purple-50">
         <div className="max-w-md w-full mx-4 bg-white rounded-lg shadow-xl p-8 text-center">
           <div className="mb-6">
             <h1 className="text-4xl mb-2">📚</h1>

@@ -24,8 +24,8 @@ export default function Navbar() {
                 href={link.href}
                 className={clsx(
                   'text-white no-underline text-sm font-medium transition-colors duration-200',
-                  'hover:text-orange-400',
-                  isActive && 'text-orange-400 border-b-2 border-orange-400 pb-1'
+                  'hover:text-purple-300',
+                  isActive && 'text-purple-300 border-b-2 border-purple-300 pb-1'
                 )}
               >
                 {link.label}

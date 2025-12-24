@@ -41,11 +41,11 @@ export default function SearchBar({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="flex-1 px-4 py-2.5 text-sm text-gray-900 rounded-l-md border-0 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          className="flex-1 px-4 py-2.5 text-sm text-gray-900 rounded-l-md border-0 focus:outline-none focus:ring-2 focus:ring-purple-500"
         />
         <button
           type="submit"
-          className="px-4 bg-orange-400 hover:bg-orange-500 text-gray-900 rounded-r-md transition-colors flex items-center justify-center"
+          className="px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-r-md transition-colors flex items-center justify-center"
         >
           <Search size={20} />
         </button>

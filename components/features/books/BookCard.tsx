@@ -28,7 +28,7 @@ export default function BookCard({
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 group">
       {/* Image Placeholder */}
-      <div className="w-full h-64 bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center relative">
+      <div className="w-full h-64 bg-gradient-to-br from-teal-50 to-purple-50 flex items-center justify-center relative">
         <div className="text-6xl opacity-30">📚</div>
         {book.sold && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -47,7 +47,7 @@ export default function BookCard({
       {/* Card Content */}
       <div className="p-4">
         {/* Title */}
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2 h-14 hover:text-orange-600 transition-colors">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2 h-14 hover:text-purple-600 transition-colors">
           {book.title}
         </h3>
 
@@ -56,7 +56,7 @@ export default function BookCard({
 
         {/* Course Badge */}
         <div className="mb-3">
-          <span className="inline-block bg-blue-50 text-blue-700 text-xs font-medium px-2 py-1 rounded">
+          <span className="inline-block bg-teal-50 text-teal-700 text-xs font-medium px-2 py-1 rounded">
             {book.course}
           </span>
         </div>
@@ -91,8 +91,8 @@ export default function BookCard({
               onClick={onToggleFavorite}
               className={`w-full py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                 isFavorite
-                  ? 'bg-orange-500 text-white hover:bg-orange-600'
-                  : 'bg-yellow-400 text-gray-900 hover:bg-yellow-500'
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'bg-amber-400 text-gray-900 hover:bg-amber-500'
               }`}
             >
               {isFavorite ? (
