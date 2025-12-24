@@ -48,6 +48,7 @@ export default function AddBookPage() {
   const author = watch('author')
   const course = watch('course')
   const category = watch('category')
+  const price = watch('price')
   
   // Check authentication on mount
   useEffect(() => {
@@ -101,9 +102,90 @@ export default function AddBookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, author, course])
   
+  // Format price with dollar sign
+  const formatPrice = (value: string): string => {
+    // Remove any existing dollar signs and trim
+    const cleaned = value.replace(/\$/g, '').trim()
+    
+    if (!cleaned) return ''
+    
+    // Check if it's a valid number (possibly with decimals)
+    const numericMatch = cleaned.match(/^(\d+\.?\d*)$/)
+    
+    if (numericMatch) {
+      // It's a number, format with dollar sign
+      return `$${cleaned}`
+    }
+    
+    // If not a valid number, return empty string (shouldn't happen with restrictions)
+    return ''
+  }
+
+  // Get register props for price field
+  const priceRegister = register('price')
+
+  const handlePriceKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow: backspace, delete, tab, escape, enter, decimal point, numbers
+    // Allow: Ctrl/Cmd + A, C, V, X (for copy/paste)
+    if (
+      ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter'].includes(e.key) ||
+      (e.key === 'a' && (e.ctrlKey || e.metaKey)) ||
+      (e.key === 'c' && (e.ctrlKey || e.metaKey)) ||
+      (e.key === 'v' && (e.ctrlKey || e.metaKey)) ||
+      (e.key === 'x' && (e.ctrlKey || e.metaKey)) ||
+      (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') ||
+      (e.key >= '0' && e.key <= '9') ||
+      (e.key === '.' && !e.currentTarget.value.includes('.')) // Only allow one decimal point
+    ) {
+      return // Allow the key press
+    }
+    e.preventDefault() // Block all other keys
+  }
+
+  const handlePriceInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Filter out any non-numeric characters (except decimal point)
+    const value = e.target.value
+    // Remove everything except digits and decimal point
+    const filtered = value.replace(/[^\d.]/g, '')
+    
+    // Ensure only one decimal point
+    const parts = filtered.split('.')
+    const sanitized = parts.length > 2 
+      ? parts[0] + '.' + parts.slice(1).join('') 
+      : filtered
+    
+    // Update the input value
+    e.target.value = sanitized
+    setValue('price', sanitized, { shouldValidate: false })
+    
+    // Call the original onChange from react-hook-form
+    priceRegister.onChange(e)
+  }
+
+  const handlePriceBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Format price with dollar sign when user leaves the field
+    const inputValue = e.target.value
+    if (inputValue.trim()) {
+      const formatted = formatPrice(inputValue)
+      if (formatted) {
+        setValue('price', formatted, { shouldValidate: true })
+        // Update the input's display value
+        e.target.value = formatted
+      }
+    }
+    
+    // Call the original onBlur from react-hook-form
+    priceRegister.onBlur(e)
+  }
+
   const onSubmit = async (data: BookFormData) => {
     try {
-      await addListing(data)
+      // Ensure price is formatted before submission
+      const formattedData = {
+        ...data,
+        price: formatPrice(data.price)
+      }
+      await addListing(formattedData)
       await fetchBooks() // Refresh the list
       reset()
       router.push('/')
@@ -209,13 +291,27 @@ export default function AddBookPage() {
           )}
         </div>
         
-        <FormInput
-          label="Price"
-          placeholder="e.g., $50 or Trade"
-          required
-          error={errors.price?.message}
-          {...register('price')}
-        />
+        <div className="mb-4">
+          <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
+            Price <span className="text-red-500 ml-1">*</span>
+          </label>
+          <input
+            id="price"
+            type="text"
+            inputMode="decimal"
+            placeholder="e.g., 50 (will format to $50)"
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+              errors.price ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'
+            }`}
+            {...priceRegister}
+            onKeyDown={handlePriceKeyDown}
+            onInput={handlePriceInput}
+            onBlur={handlePriceBlur}
+          />
+          {errors.price && (
+            <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>
+          )}
+        </div>
         
         <FormInput
           label="Contact Information"
