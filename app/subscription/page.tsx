@@ -416,7 +416,7 @@ export default function SubscriptionPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span>⚠️</span>
-              <span>Subscription is being processed. If it doesn't appear soon, please refresh the page or contact support.</span>
+              <span>Subscription is being processed. If it doesn&apos;t appear soon, please refresh the page or contact support.</span>
             </div>
             <button
               onClick={handleRefresh}
