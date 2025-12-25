@@ -1,11 +1,13 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr'
 
 /**
  * Shared Supabase browser client singleton.
  * This ensures all client components use the same Supabase instance,
  * preventing auth state race conditions.
+ * 
+ * Uses @supabase/ssr for proper cookie handling in Next.js 14.
  */
-let supabaseClient: ReturnType<typeof createSupabaseClient> | null = null
+let supabaseClient: ReturnType<typeof createSSRBrowserClient> | null = null
 
 export function createBrowserClient() {
   // Return cached client if available
@@ -22,14 +24,8 @@ export function createBrowserClient() {
     )
   }
 
-  // Create client with proper browser auth configuration
-  supabaseClient = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  })
+  // Create browser client using @supabase/ssr for proper cookie handling
+  supabaseClient = createSSRBrowserClient(supabaseUrl, supabaseAnonKey)
 
   return supabaseClient
 }
@@ -39,4 +35,3 @@ export function createBrowserClient() {
  * Use this in all client components to ensure consistent auth state.
  */
 export const getBrowserClient = () => createBrowserClient()
-
