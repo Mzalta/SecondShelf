@@ -26,8 +26,8 @@ export async function upsertSubscriptionFromStripe(
     stripe_subscription_id: subscription.id, // This is our unique key
     stripe_customer_id: subscription.customer as string,
     status: subscription.status, // Stripe status: active, trialing, past_due, canceled, etc.
-    current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
+    current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
     cancel_at_period_end: subscription.cancel_at_period_end || false,
     updated_at: new Date().toISOString(),
   }
