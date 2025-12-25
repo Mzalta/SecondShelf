@@ -14,6 +14,9 @@ export const dynamic = 'force-dynamic'
  * Get subscription status for the authenticated user
  * Aggressively syncs from Stripe if subscription not found or status is invalid
  * Stripe is the source of truth
+ * 
+ * Query params:
+ * - session_id: Checkout session ID (for strong consistency after checkout)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -35,6 +38,21 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`🔎 Authenticated user for subscription status: ${user.id}`)
+
+    // Check for session_id parameter (strong consistency path)
+    const { searchParams } = new URL(request.url)
+    const sessionId = searchParams.get('session_id')
+
+    if (sessionId) {
+      console.log(`🎯 Using checkout session path (strong consistency): ${sessionId}`)
+      const result = await syncFromCheckoutSession(sessionId, user.id, supabase)
+      
+      if (result) {
+        return result
+      }
+      // If checkout session path fails, fall through to regular sync
+      console.log(`⚠️ Checkout session path failed, falling back to metadata search`)
+    }
 
     // Get user's subscription from database
     const { data: subscription, error } = await supabase
@@ -84,7 +102,14 @@ export async function GET(request: NextRequest) {
           })
         }
       } else {
-        console.log(`No subscription found in Stripe for user: ${user.id}`)
+        // Customer not found after retries (eventually consistent search issue)
+        // Return pending status so frontend can retry
+        console.log(`⏳ No subscription found in Stripe for user: ${user.id} (customer search returned zero results after retries)`)
+        console.log(`📤 Returning pending status (202) - frontend will retry once`)
+        return NextResponse.json(
+          { status: 'pending' },
+          { status: 202 }
+        )
       }
     }
 
@@ -108,15 +133,103 @@ export async function GET(request: NextRequest) {
 }
 
 /**
+ * Sync subscription from Stripe Checkout Session (strong consistency)
+ * This bypasses eventually consistent customer search
+ */
+async function syncFromCheckoutSession(
+  sessionId: string,
+  userId: string,
+  supabase: any
+): Promise<NextResponse | null> {
+  if (!process.env.STRIPE_SECRET_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    console.log('⚠️ Stripe or Supabase admin credentials not configured, skipping checkout session sync')
+    return null
+  }
+
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+    
+    console.log(`📥 Retrieving checkout session: ${sessionId}`)
+    
+    // Retrieve checkout session with expanded subscription and customer (strong consistency)
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription', 'customer'],
+    })
+    
+    console.log(`✅ Retrieved checkout session: ${session.id}, subscription: ${session.subscription}, customer: ${session.customer}`)
+    
+    // Verify this session belongs to the authenticated user
+    const sessionUserId = session.metadata?.user_id || session.metadata?.supabase_user_id
+    if (sessionUserId && sessionUserId !== userId) {
+      console.error(`❌ Checkout session user_id mismatch: ${sessionUserId} !== ${userId}`)
+      return null
+    }
+    
+    // If session has a subscription, sync it immediately
+    if (session.subscription) {
+      const subscription = typeof session.subscription === 'string' 
+        ? await stripe.subscriptions.retrieve(session.subscription)
+        : session.subscription
+      
+      console.log(`🔄 Syncing subscription from checkout session: ${subscription.id}, status: ${subscription.status}`)
+      
+      // Use admin client for upsert
+      const supabaseAdmin = createSupabaseAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        }
+      )
+      
+      // Use canonical helper to upsert (idempotent)
+      await upsertSubscriptionFromStripe(subscription, userId, supabaseAdmin)
+      
+      // Re-fetch from database to return the synced subscription
+      const { data: syncedSubscription } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .single()
+      
+      if (syncedSubscription) {
+        const isActive = ['active', 'trialing'].includes(syncedSubscription.status)
+          && new Date(syncedSubscription.current_period_end) > new Date()
+        
+        console.log(`✅ Synced subscription from checkout session: ${syncedSubscription.stripe_subscription_id}, status: ${syncedSubscription.status}`)
+        
+        return NextResponse.json({
+          subscription: syncedSubscription,
+          isActive: !!isActive,
+          isPro: !!isActive,
+          synced: true,
+        })
+      }
+    } else {
+      console.log(`⚠️ Checkout session has no subscription yet: ${sessionId}`)
+    }
+    
+    return null
+  } catch (error: any) {
+    console.error(`❌ Error syncing from checkout session ${sessionId}:`, error)
+    return null
+  }
+}
+
+/**
  * Sync subscription from Stripe to database
  * This is the self-healing mechanism that fixes bad state
+ * Uses metadata-based customer search with retry logic
  */
 async function syncSubscriptionFromStripe(
   userId: string,
   existingCustomerId: string | null
 ): Promise<any | null> {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    console.log('Stripe or Supabase admin credentials not configured, skipping sync')
+    console.log('⚠️ Stripe or Supabase admin credentials not configured, skipping sync')
     return null
   }
 
@@ -127,28 +240,42 @@ async function syncSubscriptionFromStripe(
     let customerId: string | null = existingCustomerId
     
     if (!customerId) {
-      // Try to find customer by user_id in metadata
-      console.log(`Searching for customer by user_id metadata: ${userId}`)
-      const customers = await stripe.customers.search({
-        query: `metadata['user_id']:'${userId}' OR metadata['supabase_user_id']:'${userId}'`,
-        limit: 1,
-      })
+      // Try to find customer by user_id in metadata with retry logic
+      console.log(`🔍 Searching for customer by user_id metadata: ${userId} (with retries)`)
       
-      if (customers.data.length > 0) {
-        customerId = customers.data[0].id
-        console.log(`✅ Found customer by metadata: ${customerId}`)
-      } else {
-        console.log(`No customer found by metadata`)
-        return null
+      const maxRetries = 5
+      const retryDelay = 500 // 500ms
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const customers = await stripe.customers.search({
+          query: `metadata['user_id']:'${userId}' OR metadata['supabase_user_id']:'${userId}'`,
+          limit: 1,
+        })
+        
+        if (customers.data.length > 0) {
+          customerId = customers.data[0].id
+          console.log(`✅ Found customer by metadata (attempt ${attempt}/${maxRetries}): ${customerId}`)
+          break
+        } else {
+          if (attempt < maxRetries) {
+            console.log(`⏳ Customer not found (attempt ${attempt}/${maxRetries}), retrying in ${retryDelay}ms...`)
+            await new Promise(resolve => setTimeout(resolve, retryDelay))
+          } else {
+            console.log(`❌ Customer not found after ${maxRetries} attempts (eventually consistent search)`)
+            // Return null to trigger pending status
+            return null
+          }
+        }
       }
     }
     
     if (!customerId) {
+      console.log(`⚠️ No customer ID found after retries, returning null (will trigger pending status)`)
       return null
     }
 
     // Get all subscriptions for this customer from Stripe
-    console.log(`Fetching subscriptions from Stripe for customer: ${customerId}`)
+    console.log(`📥 Fetching subscriptions from Stripe for customer: ${customerId}`)
     const stripeSubscriptions = await stripe.subscriptions.list({
       customer: customerId,
       status: 'all',
@@ -192,7 +319,7 @@ async function syncSubscriptionFromStripe(
     
     return syncedSubscription
   } catch (error: any) {
-    console.error('Error syncing subscription from Stripe:', error)
+    console.error('❌ Error syncing subscription from Stripe:', error)
     return null
   }
 }

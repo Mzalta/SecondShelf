@@ -28,8 +28,10 @@ export default function SubscriptionPage() {
   const searchParams = useSearchParams()
   const success = searchParams.get('success')
   const canceled = searchParams.get('canceled')
+  const sessionId = searchParams.get('session_id')
   const supabase = createBrowserClient()
   const authCheckedRef = useRef(false)
+  const pendingRetryRef = useRef(false)
 
   // Wait for auth state to hydrate before checking authentication
   useEffect(() => {
@@ -88,19 +90,21 @@ export default function SubscriptionPage() {
     }
   }, [])
 
-  // Handle success parameter - fetch status once (status API will sync from Stripe if needed)
+  // Handle success parameter - fetch status with session_id if available (strong consistency)
   useEffect(() => {
     if (success === 'true' && user && authHydrated) {
       supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
         if (session) {
-          // Status API will aggressively sync from Stripe, so just fetch once
-          fetchSubscriptionStatus(session)
+          // Pass session_id to API for strong consistency (bypasses eventually consistent search)
+          fetchSubscriptionStatus(session, sessionId || undefined)
         }
       })
     }
-  }, [success, user, authHydrated])
+  }, [success, user, authHydrated, sessionId])
 
-  const fetchSubscriptionStatus = async (session: Session) => {
+  const fetchSubscriptionStatus = async (session: Session, checkoutSessionId?: string) => {
+    let shouldSetLoadingFalse = true // Flag to control if we set loading to false
+    
     try {
       setLoading(true)
       setError(null)
@@ -118,11 +122,41 @@ export default function SubscriptionPage() {
         'Authorization': `Bearer ${accessToken}`,
       }
 
-      const response = await fetch('/api/subscriptions/status', {
+      // Include session_id in query params if available (for strong consistency)
+      const url = checkoutSessionId 
+        ? `/api/subscriptions/status?session_id=${encodeURIComponent(checkoutSessionId)}`
+        : '/api/subscriptions/status'
+
+      console.log(`🔍 Fetching subscription status${checkoutSessionId ? ` with session_id: ${checkoutSessionId}` : ''}`)
+
+      const response = await fetch(url, {
         credentials: 'include',
         headers,
       })
       
+      // Handle 202 Accepted (pending) status
+      if (response.status === 202) {
+        const data = await response.json()
+        console.log('⚠️ Subscription status is pending, will retry once after delay')
+        
+        // Retry once after 1.5 seconds if not already retried
+        if (!pendingRetryRef.current) {
+          pendingRetryRef.current = true
+          shouldSetLoadingFalse = false // Keep loading true while waiting for retry
+          // Retry after delay
+          setTimeout(async () => {
+            console.log('🔄 Retrying subscription status fetch...')
+            await fetchSubscriptionStatus(session, checkoutSessionId)
+          }, 1500)
+          return
+        } else {
+          // Already retried, still pending - keep loading to avoid showing "Free Account"
+          console.log('⚠️ Still pending after retry, keeping loading state')
+          shouldSetLoadingFalse = false // Keep loading true to prevent showing "Free Account"
+          return
+        }
+      }
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         const errorMessage = errorData.error || 'Failed to fetch subscription status'
@@ -133,18 +167,25 @@ export default function SubscriptionPage() {
       }
 
       const data = await response.json()
-      console.log('Subscription status fetched:', { 
+      console.log('✅ Subscription status fetched:', { 
         isPro: data.isPro, 
         isActive: data.isActive,
         status: data.subscription?.status,
-        hasSubscription: !!data.subscription 
+        hasSubscription: !!data.subscription,
+        synced: data.synced 
       })
+      
+      // Reset pending retry flag on success
+      pendingRetryRef.current = false
       setSubscriptionStatus(data)
     } catch (err: any) {
       setError(err.message || 'Failed to load subscription status')
       console.error('Error fetching subscription status:', err)
     } finally {
-      setLoading(false)
+      // Only set loading to false if we're not in a pending retry state
+      if (shouldSetLoadingFalse) {
+        setLoading(false)
+      }
     }
   }
 
@@ -222,6 +263,8 @@ export default function SubscriptionPage() {
   const handleRefresh = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
+      // Reset pending retry flag on manual refresh
+      pendingRetryRef.current = false
       await fetchSubscriptionStatus(session)
     }
   }

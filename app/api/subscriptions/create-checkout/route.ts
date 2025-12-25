@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?success=true`,
+      success_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?canceled=true`,
       metadata: {
         user_id: user.id, // Store user_id in checkout session metadata
