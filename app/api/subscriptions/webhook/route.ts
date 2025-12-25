@@ -123,9 +123,29 @@ async function handleCheckoutCompleted(
       console.error('Error retrieving customer from Stripe:', error)
     }
   }
+  
+  // CRITICAL FIX: If still no userId, try to find user by customer_id in subscriptions table
+  // This matches task-app's approach and ensures we can always find the user
+  if (!userId && session.customer) {
+    try {
+      const { data: existingSub } = await supabaseAdmin
+        .from('subscriptions')
+        .select('user_id')
+        .eq('stripe_customer_id', session.customer as string)
+        .maybeSingle()
+      
+      if (existingSub?.user_id) {
+        userId = existingSub.user_id
+        console.log(`Retrieved user_id from subscriptions table by customer_id: ${userId}`)
+      }
+    } catch (error) {
+      console.error('Error querying subscriptions table:', error)
+    }
+  }
 
   if (!userId) {
-    console.error('No user_id found in checkout session metadata or customer metadata')
+    console.error('No user_id found in checkout session metadata, customer metadata, or subscriptions table')
+    console.error('Session customer:', session.customer)
     return
   }
 
@@ -143,7 +163,7 @@ async function handleSubscriptionUpdate(
   supabaseAdmin: ReturnType<typeof createClient>,
   stripe: Stripe
 ) {
-  // Try to find user by customer ID in database first
+  // Try to find user by customer ID in database first (like task-app does)
   const { data: existingSub } = await supabaseAdmin
     .from('subscriptions')
     .select('user_id')
@@ -217,7 +237,21 @@ async function handleInvoicePaymentSucceeded(
 
   let userId = existingSub?.user_id
 
-  // If not found, try to get user_id from Stripe customer metadata
+  // If not found by subscription ID, try by customer ID (like task-app does)
+  if (!userId && subscription.customer) {
+    const { data: customerSub } = await supabaseAdmin
+      .from('subscriptions')
+      .select('user_id')
+      .eq('stripe_customer_id', subscription.customer as string)
+      .maybeSingle()
+    
+    if (customerSub?.user_id) {
+      userId = customerSub.user_id
+      console.log(`Retrieved user_id from subscriptions table by customer_id: ${userId}`)
+    }
+  }
+
+  // If still not found, try to get user_id from Stripe customer metadata
   if (!userId && subscription.customer) {
     try {
       const customer = await stripe.customers.retrieve(subscription.customer as string)
@@ -277,7 +311,7 @@ async function upsertSubscription(
     updated_at: new Date().toISOString(),
   }
 
-  // Check if subscription exists for this user
+  // Check if subscription exists for this user (including placeholder records)
   const { data: existingSub } = await supabaseAdmin
     .from('subscriptions')
     .select('id, stripe_subscription_id')
@@ -285,9 +319,10 @@ async function upsertSubscription(
     .maybeSingle()
 
   if (existingSub) {
-    // If subscription_id changed, we need to handle the unique constraint
+    // If subscription_id changed or is a placeholder (starts with 'pending-'), we need to handle the unique constraint
     // Delete any subscription with the new subscription_id if it exists for a different user
-    if (existingSub.stripe_subscription_id !== subscription.id) {
+    const isPlaceholder = existingSub.stripe_subscription_id?.startsWith('pending-')
+    if (existingSub.stripe_subscription_id !== subscription.id && !isPlaceholder) {
       const { error: deleteError } = await supabaseAdmin
         .from('subscriptions')
         .delete()
@@ -300,7 +335,7 @@ async function upsertSubscription(
       }
     }
 
-    // Update existing subscription
+    // Update existing subscription (this will update placeholder records too)
     const { error: updateError } = await supabaseAdmin
       .from('subscriptions')
       .update(subscriptionData)

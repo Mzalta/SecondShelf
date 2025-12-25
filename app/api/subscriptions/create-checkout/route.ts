@@ -24,65 +24,64 @@ export async function POST(request: NextRequest) {
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
-    // Try to get access token from Authorization header first (more reliable)
+    // Get access token from Authorization header (like task-app does)
     const authHeader = request.headers.get('Authorization')
+    const accessToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null
+    
     let user = null
     let supabase = null
     
-    if (authHeader?.startsWith('Bearer ')) {
-      const accessToken = authHeader.split(' ')[1]
-      // Create a client with the access token in global headers
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      
-      if (supabaseUrl && supabaseAnonKey) {
-        supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-          global: {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          },
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-          },
-        })
-        
-        const { data: { user: userData }, error: tokenError } = await supabase.auth.getUser()
-        if (!tokenError && userData) {
-          user = userData
-        }
-      }
-    }
-    
-    // Fallback to cookie-based authentication
-    if (!user || !supabase) {
+    if (!accessToken) {
+      // Fallback to cookie-based authentication
       supabase = createClient()
-      
-      // Try to get session first (works better with cookies)
       const {
-        data: { session: authSession },
+        data: { session },
         error: sessionError,
       } = await supabase.auth.getSession()
       
-      // If no session, try getUser
-      user = authSession?.user
-      if (!user) {
-        const {
-          data: { user: userData },
-          error: authError,
-        } = await supabase.auth.getUser()
-        
-        if (authError || !userData) {
-          console.error('Authentication error:', authError || sessionError)
-          return NextResponse.json(
-            { error: 'Unauthorized. Please sign in to upgrade your plan.' },
-            { status: 401 }
-          )
-        }
-        
-        user = userData
+      if (sessionError || !session?.user) {
+        console.error('Authentication error:', sessionError)
+        return NextResponse.json(
+          { error: 'Unauthorized. Please sign in to upgrade your plan.' },
+          { status: 401 }
+        )
       }
+      user = session.user
+    } else {
+      // Use Authorization header token (more reliable, like task-app)
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        return NextResponse.json(
+          { error: 'Supabase configuration is missing' },
+          { status: 500 }
+        )
+      }
+      
+      supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      })
+      
+      const { data: { user: userData }, error: tokenError } = await supabase.auth.getUser()
+      
+      if (tokenError || !userData) {
+        console.error('Authentication error:', tokenError)
+        return NextResponse.json(
+          { error: 'Unauthorized. Please sign in to upgrade your plan.' },
+          { status: 401 }
+        )
+      }
+      
+      user = userData
     }
     
     if (!user || !supabase) {
@@ -91,6 +90,8 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+    
+    console.log(`🔎 Authenticated user: ${user.id}`)
 
     // Check if user already has an active subscription
     const { data: existingSubscription } = await supabase
@@ -117,11 +118,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create or retrieve Stripe customer
+    // Create or retrieve Stripe customer (like task-app does)
     let customerId: string
     
     // Check if user already has a customer ID in any subscription record
-    const { data: existingSub, error: subQueryError } = await supabase
+    const { data: existingSub } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')
       .eq('user_id', user.id)
@@ -131,9 +132,10 @@ export async function POST(request: NextRequest) {
 
     if (existingSub?.stripe_customer_id) {
       customerId = existingSub.stripe_customer_id
+      console.log(`✅ Found existing Stripe customer: ${customerId}`)
     } else {
       // Create new Stripe customer with user_id in metadata
-      // This ensures the webhook can find the user even if customer_id isn't in DB yet
+      console.log('📝 Creating new Stripe customer...')
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: {
@@ -141,8 +143,60 @@ export async function POST(request: NextRequest) {
         },
       })
       customerId = customer.id
-      // Note: Customer ID will be saved to DB when subscription is created via webhook
-      // The user_id is stored in Stripe customer metadata as a fallback
+      
+      // IMPORTANT: Store customer ID in database BEFORE redirecting to Stripe
+      // This ensures the webhook can find the user even if metadata fails
+      // Use a unique placeholder subscription_id per user to avoid unique constraint issues
+      const placeholderSubscriptionId = `pending-${user.id}-${Date.now()}`
+      
+      // Check if a subscription record already exists for this user
+      const { data: existingRecord } = await supabase
+        .from('subscriptions')
+        .select('id, stripe_customer_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      
+      if (existingRecord) {
+        // Update existing record with customer ID
+        const { error: updateError } = await supabase
+          .from('subscriptions')
+          .update({ 
+            stripe_customer_id: customerId,
+            stripe_subscription_id: placeholderSubscriptionId,
+            status: 'pending',
+            current_period_start: new Date().toISOString(),
+            current_period_end: new Date().toISOString(),
+          })
+          .eq('user_id', user.id)
+        
+        if (updateError) {
+          console.error('Error updating subscription with customer ID:', updateError)
+          // Continue anyway - metadata will help webhook find the user
+        } else {
+          console.log(`✅ Updated existing subscription record with customer ID: ${customerId}`)
+        }
+      } else {
+        // Create new placeholder record
+        const { error: insertError } = await supabase
+          .from('subscriptions')
+          .insert({
+            user_id: user.id,
+            stripe_customer_id: customerId,
+            stripe_subscription_id: placeholderSubscriptionId,
+            status: 'pending',
+            current_period_start: new Date().toISOString(),
+            current_period_end: new Date().toISOString(),
+          })
+        
+        if (insertError) {
+          console.error('Error storing customer ID:', insertError)
+          // Continue anyway - metadata will help webhook find the user
+        } else {
+          console.log(`✅ Created placeholder subscription record with customer ID: ${customerId}`)
+        }
+      }
+      
+      console.log(`✅ Created and stored Stripe customer: ${customerId}`)
     }
 
     // Create Checkout Session
