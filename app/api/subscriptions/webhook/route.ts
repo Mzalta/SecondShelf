@@ -155,7 +155,7 @@ async function handleCheckoutCompleted(
   )
 
   await upsertSubscription(subscription, userId, supabaseAdmin)
-  console.log(`Checkout completed for user: ${userId}`)
+  console.log(`✅ Checkout completed and subscription updated for user: ${userId}, subscription: ${subscription.id}, status: ${subscription.status}`)
 }
 
 async function handleSubscriptionUpdate(
@@ -318,24 +318,44 @@ async function upsertSubscription(
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (existingSub) {
-    // If subscription_id changed or is a placeholder (starts with 'pending-'), we need to handle the unique constraint
-    // Delete any subscription with the new subscription_id if it exists for a different user
-    const isPlaceholder = existingSub.stripe_subscription_id?.startsWith('pending-')
-    if (existingSub.stripe_subscription_id !== subscription.id && !isPlaceholder) {
+  const isPlaceholder = existingSub?.stripe_subscription_id?.startsWith('pending-')
+  const subscriptionIdChanged = existingSub && existingSub.stripe_subscription_id !== subscription.id
+
+  // If we have a placeholder or the subscription ID changed, we need to handle the unique constraint
+  // by deleting the old record first, then inserting/updating
+  if (isPlaceholder || subscriptionIdChanged) {
+    // Delete any existing subscription with the new subscription_id (for safety, in case it exists)
+    await supabaseAdmin
+      .from('subscriptions')
+      .delete()
+      .eq('stripe_subscription_id', subscription.id)
+
+    // If there's an existing subscription for this user (placeholder or old subscription), delete it
+    if (existingSub) {
       const { error: deleteError } = await supabaseAdmin
         .from('subscriptions')
         .delete()
-        .eq('stripe_subscription_id', subscription.id)
-        .neq('user_id', userId)
+        .eq('user_id', userId)
 
       if (deleteError) {
-        console.warn('Warning deleting conflicting subscription:', deleteError)
-        // Continue anyway - the update might still work
+        console.error('Error deleting existing subscription:', deleteError)
+        throw deleteError
       }
     }
 
-    // Update existing subscription (this will update placeholder records too)
+    // Now insert the new subscription with the real subscription ID
+    const { error: insertError } = await supabaseAdmin
+      .from('subscriptions')
+      .insert(subscriptionData)
+
+    if (insertError) {
+      console.error('Error inserting subscription after deleting placeholder:', insertError)
+      throw insertError
+    }
+
+    console.log(`✅ Successfully replaced placeholder subscription with real subscription: ${subscription.id}`)
+  } else if (existingSub) {
+    // Subscription exists and ID hasn't changed - just update it
     const { error: updateError } = await supabaseAdmin
       .from('subscriptions')
       .update(subscriptionData)
@@ -345,8 +365,10 @@ async function upsertSubscription(
       console.error('Error updating subscription:', updateError)
       throw updateError
     }
+
+    console.log(`✅ Successfully updated subscription: ${subscription.id}`)
   } else {
-    // Insert new subscription
+    // No existing subscription - insert new one
     // First, delete any subscription with this subscription_id if it exists (shouldn't happen, but safety check)
     await supabaseAdmin
       .from('subscriptions')
@@ -361,6 +383,9 @@ async function upsertSubscription(
       console.error('Error inserting subscription:', insertError)
       throw insertError
     }
+
+    console.log(`✅ Successfully inserted new subscription: ${subscription.id}`)
   }
 }
+
 
