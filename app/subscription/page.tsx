@@ -88,15 +88,76 @@ export default function SubscriptionPage() {
     }
   }, [])
 
-  // Handle success parameter
+  // Handle success parameter with polling to wait for webhook
   useEffect(() => {
     if (success === 'true' && user) {
-      // Refresh status after successful subscription
-      supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-        if (session) {
-          fetchSubscriptionStatus(session)
+      let pollCount = 0
+      const maxPolls = 10 // Poll for up to 10 times (10 seconds)
+      const pollInterval = 1000 // Poll every 1 second
+      let pollingActive = true
+      
+      const pollSubscriptionStatus = async () => {
+        if (!pollingActive) return
+        
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          setLoading(false)
+          return
         }
-      })
+        
+        try {
+          setLoading(true)
+          const accessToken = session.access_token
+          if (!accessToken) {
+            setLoading(false)
+            return
+          }
+
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          }
+
+          const response = await fetch('/api/subscriptions/status', {
+            credentials: 'include',
+            headers,
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            setSubscriptionStatus(data)
+            
+            // If subscription is now active, stop polling
+            if (data.isPro) {
+              setLoading(false)
+              pollingActive = false
+              return
+            }
+          }
+        } catch (err) {
+          console.error('Error polling subscription status:', err)
+        }
+        
+        pollCount++
+        if (pollCount < maxPolls && pollingActive) {
+          setTimeout(pollSubscriptionStatus, pollInterval)
+        } else {
+          setLoading(false)
+          // Final fetch attempt
+          const { data: { session: finalSession } } = await supabase.auth.getSession()
+          if (finalSession) {
+            fetchSubscriptionStatus(finalSession)
+          }
+        }
+      }
+      
+      // Start polling immediately
+      pollSubscriptionStatus()
+      
+      // Cleanup function to stop polling if component unmounts
+      return () => {
+        pollingActive = false
+      }
     }
   }, [success, user])
 
@@ -213,6 +274,13 @@ export default function SubscriptionPage() {
     }
   }
 
+  const handleRefresh = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      await fetchSubscriptionStatus(session)
+    }
+  }
+
   const handleCancel = async () => {
     if (!confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your billing period.')) {
       return
@@ -283,7 +351,19 @@ export default function SubscriptionPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Manage Subscription</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Manage Subscription</h1>
+        {user && (
+          <button
+            onClick={handleRefresh}
+            className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors border border-gray-300"
+            title="Refresh subscription status"
+            disabled={loading}
+          >
+            {loading ? '⏳' : '↻'} Refresh
+          </button>
+        )}
+      </div>
 
       {error && (
         <ErrorDisplay
@@ -293,7 +373,16 @@ export default function SubscriptionPage() {
         />
       )}
 
-      {success === 'true' && (
+      {success === 'true' && !subscriptionStatus?.isPro && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-6">
+          <div className="flex items-center gap-2">
+            <span className="animate-spin">⏳</span>
+            <span>Processing your subscription... This may take a few moments.</span>
+          </div>
+        </div>
+      )}
+      
+      {success === 'true' && subscriptionStatus?.isPro && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-6">
           ✅ Subscription activated successfully! Welcome to Pro!
         </div>
