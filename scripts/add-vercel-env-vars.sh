@@ -10,7 +10,17 @@ echo ""
 echo "📝 Adding Supabase variables..."
 echo "https://wtwaoadrqzfewlcyutba.supabase.co" | vercel env add NEXT_PUBLIC_SUPABASE_URL production preview development --yes
 echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0d2FvYWRycXpmZXdsY3l1dGJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4Mzk1ODYsImV4cCI6MjA4MTQxNTU4Nn0.C5ggqMzSNN0AT4stp8Ts0W-5GsOk1MS5qqYXMzsfLL0" | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production preview development --yes
-echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0d2FvYWRycXpmZXdsY3l1dGJhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTgzOTU4NiwiZXhwIjoyMDgxNDE1NTg2fQ.l8FdY4_MOCLBExpUW6yjXN6L1T4g6U1XcvrRwZdkgtI" | vercel env add SUPABASE_SERVICE_ROLE_KEY production preview development --yes
+
+# ⚠️ SECURITY: SUPABASE_SERVICE_ROLE_KEY should NEVER be hardcoded in scripts
+# Add it manually via Vercel Dashboard or use a secure method that reads from environment
+echo "⚠️  SECURITY WARNING: SUPABASE_SERVICE_ROLE_KEY must be added manually via Vercel Dashboard"
+echo "   Never commit service role keys to version control!"
+echo ""
+echo "To add SUPABASE_SERVICE_ROLE_KEY:"
+echo "  1. Go to Vercel Dashboard → Settings → Environment Variables"
+echo "  2. Get the key from Supabase Dashboard → Settings → API → service_role secret"
+echo "  3. Add it manually in Vercel (do NOT use this script)"
+echo ""
 
 # Stripe Variables
 echo "📝 Adding Stripe variables..."

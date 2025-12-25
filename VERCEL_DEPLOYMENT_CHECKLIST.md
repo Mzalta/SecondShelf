@@ -15,8 +15,10 @@ Go to your Vercel Dashboard and add these environment variables:
    - Environments: ✅ Production, ✅ Preview, ✅ Development
 
 3. **SUPABASE_SERVICE_ROLE_KEY**
-   - Value: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0d2FvYWRycXpmZXdsY3l1dGJhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTgzOTU4NiwiZXhwIjoyMDgxNDE1NTg2fQ.l8FdY4_MOCLBExpUW6yjXN6L1T4g6U1XcvrRwZdkgtI`
+   - Value: `[Get from Supabase Dashboard → Settings → API → service_role secret]`
+   - ⚠️ **NEVER commit this key to version control!**
    - Environments: ✅ Production, ✅ Preview, ✅ Development
+   - How to get: Supabase Dashboard → Settings → API → Project API keys → `service_role` `secret`
 
 4. **STRIPE_SECRET_KEY**
    - Value: `sk_test_...` (Get from Stripe Dashboard → Developers → API keys)
