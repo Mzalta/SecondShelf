@@ -1,33 +1,17 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-
 /**
- * Server-side auth gating for /subscription route.
- * This prevents unauthenticated users from accessing the subscription page
- * before the client component even renders, eliminating race conditions.
+ * Layout for /subscription route.
  * 
- * Note: This provides an additional layer of protection. The client component
- * also handles auth state properly after hydration as a fallback.
+ * Note: We let the client component handle authentication checks
+ * to avoid server-side cookie issues that could cause page refreshes.
+ * The client component properly waits for auth hydration.
  */
 export default async function SubscriptionLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = createClient()
-  
-  // Check authentication on the server
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  // If user is not authenticated, redirect to home
-  // The client component will also check auth state after hydration as a fallback
-  if (error || !user) {
-    redirect('/')
-  }
-
+  // Let the client component handle auth checks
+  // This prevents server-side cookie issues from causing page refreshes
   return <>{children}</>
 }
 
