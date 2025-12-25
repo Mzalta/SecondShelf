@@ -43,12 +43,60 @@ export default function SubscriptionPage() {
       setLoading(true)
       setError(null)
 
-      // Get access token from Supabase session (always check, don't rely on store)
+      // Get user and session from Supabase (use getUser which is more reliable)
       const supabase = createClient()
+      
+      // Try getUser first (more reliable than getSession)
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError || !user) {
+        // Fallback to getSession if getUser fails
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError || !session) {
+          console.error('Auth check failed:', userError || sessionError)
+          setError('You must be signed in to view your subscription status')
+          setLoading(false)
+          return
+        }
+        
+        // Use session if getUser didn't work
+        const accessToken = session.access_token
+        if (!accessToken) {
+          setError('No access token found. Please sign in again.')
+          setLoading(false)
+          return
+        }
+        
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        }
+
+        const response = await fetch('/api/subscriptions/status', {
+          credentials: 'include',
+          headers,
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          const errorMessage = errorData.error || 'Failed to fetch subscription status'
+          setError(errorMessage)
+          console.error('Subscription status API error:', errorMessage, response.status)
+          return
+        }
+
+        const data = await response.json()
+        setSubscriptionStatus(data)
+        return
+      }
+      
+      // If we have a user, get the session for the access token
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError || !session) {
-        setError('You must be signed in to view your subscription status')
+        console.error('Session check failed after getUser succeeded:', sessionError)
+        setError('Session expired. Please refresh the page.')
         setLoading(false)
         return
       }
@@ -94,12 +142,61 @@ export default function SubscriptionPage() {
       setProcessing(true)
       setError(null)
 
-      // Get access token from Supabase session (always check, don't rely on store)
+      // Get user and session from Supabase (use getUser which is more reliable)
       const supabase = createClient()
+      
+      // Try getUser first (more reliable than getSession)
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError || !user) {
+        // Fallback to getSession
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError || !session) {
+          setError('You must be signed in to upgrade to Pro')
+          setProcessing(false)
+          return
+        }
+        
+        const accessToken = session.access_token
+        if (!accessToken) {
+          setError('No access token found. Please sign in again.')
+          setProcessing(false)
+          return
+        }
+        
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        }
+
+        const response = await fetch('/api/subscriptions/create-checkout', {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+        })
+
+        if (!response.ok) {
+          const data = await response.json()
+          const errorMessage = data.error || 'Failed to create checkout session'
+          throw new Error(errorMessage)
+        }
+
+        const data = await response.json()
+        
+        if (data.url) {
+          window.location.href = data.url
+        } else {
+          throw new Error('No checkout URL received')
+        }
+        return
+      }
+      
+      // If we have a user, get the session for the access token
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError || !session) {
-        setError('You must be signed in to upgrade to Pro')
+        setError('Session expired. Please refresh the page.')
         setProcessing(false)
         return
       }
@@ -187,24 +284,70 @@ export default function SubscriptionPage() {
     )
   }
 
-  // Show message if there's an auth error (but don't block on currentUser from store)
-  if (error && error.includes('sign in') && !loading) {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Subscription</h1>
-        <Card>
-          <div className="text-center py-8">
-            <h2 className="text-2xl font-bold mb-4">Sign In Required</h2>
-            <p className="text-gray-600 mb-6">
-              Please sign in to view your subscription status and upgrade to Pro.
-            </p>
-            <p className="text-sm text-gray-500">
-              Use the Sign In button in the header to get started.
-            </p>
-          </div>
-        </Card>
-      </div>
-    )
+  // Only show "Sign In Required" if we're absolutely sure there's no user
+  // Don't show it if we're still loading or if there's a different error
+  if (error && error.includes('sign in') && !loading && !subscriptionStatus) {
+    // Double-check if user is actually signed in by checking the store
+    // If store has a user, it's likely a session refresh issue
+    if (!currentUser) {
+      return (
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-3xl font-bold mb-6">Subscription</h1>
+          <Card>
+            <div className="text-center py-8">
+              <h2 className="text-2xl font-bold mb-4">Sign In Required</h2>
+              <p className="text-gray-600 mb-6">
+                Please sign in to view your subscription status and upgrade to Pro.
+              </p>
+              <p className="text-sm text-gray-500 mb-4">
+                Use the Sign In button in the header to get started.
+              </p>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setError(null)
+                  fetchSubscriptionStatus()
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )
+    } else {
+      // User exists in store but session check failed - likely a refresh issue
+      return (
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-3xl font-bold mb-6">Subscription</h1>
+          <Card>
+            <div className="text-center py-8">
+              <h2 className="text-2xl font-bold mb-4">Session Refresh Needed</h2>
+              <p className="text-gray-600 mb-6">
+                Your session may have expired. Please try refreshing the page or signing in again.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setError(null)
+                    fetchSubscriptionStatus()
+                  }}
+                >
+                  Retry
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => window.location.reload()}
+                >
+                  Refresh Page
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )
+    }
   }
 
   return (
