@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 // Disable body parsing for webhook route
 export const runtime = 'nodejs'
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
   stripe: Stripe,
-  supabaseAdmin: ReturnType<typeof createClient>
+  supabaseAdmin: SupabaseClient<any>
 ) {
   if (session.mode !== 'subscription' || !session.subscription) {
     return
@@ -160,7 +160,7 @@ async function handleCheckoutCompleted(
 
 async function handleSubscriptionUpdate(
   subscription: Stripe.Subscription,
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseClient<any>,
   stripe: Stripe
 ) {
   // Try to find user by customer ID in database first (like task-app does)
@@ -196,7 +196,7 @@ async function handleSubscriptionUpdate(
 
 async function handleSubscriptionDeleted(
   subscription: Stripe.Subscription,
-  supabaseAdmin: ReturnType<typeof createClient>
+  supabaseAdmin: SupabaseClient<any>
 ) {
   const { error } = await supabaseAdmin
     .from('subscriptions')
@@ -217,7 +217,7 @@ async function handleSubscriptionDeleted(
 async function handleInvoicePaymentSucceeded(
   invoice: Stripe.Invoice,
   stripe: Stripe,
-  supabaseAdmin: ReturnType<typeof createClient>
+  supabaseAdmin: SupabaseClient<any>
 ) {
   // Access subscription property with type assertion for API compatibility
   const subscriptionId = (invoice as any).subscription
@@ -274,7 +274,7 @@ async function handleInvoicePaymentSucceeded(
 
 async function handleInvoicePaymentFailed(
   invoice: Stripe.Invoice,
-  supabaseAdmin: ReturnType<typeof createClient>
+  supabaseAdmin: SupabaseClient<any>
 ) {
   const subscriptionId = (invoice as any).subscription
   if (!subscriptionId || typeof subscriptionId !== 'string') return
@@ -298,7 +298,7 @@ async function handleInvoicePaymentFailed(
 async function upsertSubscription(
   subscription: Stripe.Subscription,
   userId: string,
-  supabaseAdmin: ReturnType<typeof createClient>
+  supabaseAdmin: SupabaseClient<any>
 ) {
   const subscriptionData = {
     user_id: userId,

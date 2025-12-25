@@ -8,7 +8,7 @@ import Loading from '@/components/ui/Loading'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { createBrowserClient } from '@/lib/supabase/browser'
-import type { Session, User } from '@supabase/supabase-js'
+import type { Session, User, AuthChangeEvent } from '@supabase/supabase-js'
 
 interface SubscriptionStatus {
   subscription: any
@@ -38,7 +38,7 @@ export default function SubscriptionPage() {
     // Set up auth state listener - this is the primary way to detect auth state
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       // Auth state has changed - mark as hydrated
       setAuthHydrated(true)
       setUser(session?.user ?? null)
@@ -62,7 +62,7 @@ export default function SubscriptionPage() {
 
     // Also check initial session (but don't rely on it alone)
     // This provides an immediate check while waiting for onAuthStateChange
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       if (session) {
         setAuthHydrated(true)
         setUser(session.user)
@@ -92,7 +92,7 @@ export default function SubscriptionPage() {
   useEffect(() => {
     if (success === 'true' && user) {
       // Refresh status after successful subscription
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
         if (session) {
           fetchSubscriptionStatus(session)
         }

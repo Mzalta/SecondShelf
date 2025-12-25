@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 // Disable body parsing for webhook route
 export const runtime = 'nodejs'
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
 async function handlePaymentSuccess(
   paymentIntent: Stripe.PaymentIntent,
-  supabaseAdmin: ReturnType<typeof createClient>
+  supabaseAdmin: SupabaseClient<any>
 ) {
   const { error } = await supabaseAdmin
     .from('purchases')
@@ -110,7 +110,7 @@ async function handlePaymentSuccess(
 
 async function handlePaymentFailure(
   paymentIntent: Stripe.PaymentIntent,
-  supabaseAdmin: ReturnType<typeof createClient>
+  supabaseAdmin: SupabaseClient<any>
 ) {
   const { error } = await supabaseAdmin
     .from('purchases')
@@ -130,7 +130,7 @@ async function handlePaymentFailure(
 
 async function handlePaymentCanceled(
   paymentIntent: Stripe.PaymentIntent,
-  supabaseAdmin: ReturnType<typeof createClient>
+  supabaseAdmin: SupabaseClient<any>
 ) {
   const { error } = await supabaseAdmin
     .from('purchases')
