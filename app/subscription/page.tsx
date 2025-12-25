@@ -27,43 +27,43 @@ export default function SubscriptionPage() {
   const canceled = searchParams.get('canceled')
 
   useEffect(() => {
-    // Only fetch subscription status if user is signed in
-    if (currentUser) {
-      fetchSubscriptionStatus()
-      
-      if (success === 'true') {
-        // Refresh status after successful subscription
-        setTimeout(() => {
-          fetchSubscriptionStatus()
-        }, 2000)
-      }
-    } else {
-      setLoading(false)
+    // Always try to fetch subscription status - don't rely solely on currentUser from store
+    fetchSubscriptionStatus()
+    
+    if (success === 'true') {
+      // Refresh status after successful subscription
+      setTimeout(() => {
+        fetchSubscriptionStatus()
+      }, 2000)
     }
-  }, [success, currentUser])
+  }, [success])
 
   const fetchSubscriptionStatus = async () => {
-    if (!currentUser) {
-      setError('You must be signed in to view your subscription status')
-      setLoading(false)
-      return
-    }
-
     try {
       setLoading(true)
       setError(null)
 
-      // Get access token from Supabase session
+      // Get access token from Supabase session (always check, don't rely on store)
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.access_token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError || !session) {
+        setError('You must be signed in to view your subscription status')
+        setLoading(false)
+        return
+      }
+
+      const accessToken = session.access_token
+
+      if (!accessToken) {
+        setError('No access token found. Please sign in again.')
+        setLoading(false)
+        return
+      }
 
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-      }
-      
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`
+        'Authorization': `Bearer ${accessToken}`,
       }
 
       const response = await fetch('/api/subscriptions/status', {
@@ -75,6 +75,7 @@ export default function SubscriptionPage() {
         const errorData = await response.json().catch(() => ({}))
         const errorMessage = errorData.error || 'Failed to fetch subscription status'
         setError(errorMessage)
+        console.error('Subscription status API error:', errorMessage, response.status)
         return
       }
 
@@ -89,26 +90,31 @@ export default function SubscriptionPage() {
   }
 
   const handleSubscribe = async () => {
-    if (!currentUser) {
-      setError('You must be signed in to upgrade to Pro')
-      return
-    }
-
     try {
       setProcessing(true)
       setError(null)
 
-      // Get access token from Supabase session
+      // Get access token from Supabase session (always check, don't rely on store)
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.access_token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError || !session) {
+        setError('You must be signed in to upgrade to Pro')
+        setProcessing(false)
+        return
+      }
+
+      const accessToken = session.access_token
+
+      if (!accessToken) {
+        setError('No access token found. Please sign in again.')
+        setProcessing(false)
+        return
+      }
 
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-      }
-      
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`
+        'Authorization': `Bearer ${accessToken}`,
       }
 
       const response = await fetch('/api/subscriptions/create-checkout', {
@@ -181,8 +187,8 @@ export default function SubscriptionPage() {
     )
   }
 
-  // Show message if user is not signed in (edge case)
-  if (!currentUser) {
+  // Show message if there's an auth error (but don't block on currentUser from store)
+  if (error && error.includes('sign in') && !loading) {
     return (
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">Subscription</h1>

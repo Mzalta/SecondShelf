@@ -12,73 +12,75 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: NextRequest) {
   try {
-    // Try to get access token from Authorization header first (more reliable)
+    // Get access token from Authorization header (like task-app does)
     const authHeader = request.headers.get('Authorization')
+    const accessToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null
+    
     let user = null
     let supabase = null
     
-    if (authHeader?.startsWith('Bearer ')) {
-      const accessToken = authHeader.split(' ')[1]
-      // Create a client with the access token in global headers
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      
-      if (supabaseUrl && supabaseAnonKey) {
-        supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-          global: {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          },
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-          },
-        })
-        
-        const { data: { user: userData }, error: tokenError } = await supabase.auth.getUser()
-        if (!tokenError && userData) {
-          user = userData
-        }
-      }
-    }
-    
-    // Fallback to cookie-based authentication
-    if (!user || !supabase) {
+    if (!accessToken) {
+      // Fallback to cookie-based authentication
       supabase = createClient()
-      
-      // Try to get session first (works better with cookies)
       const {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession()
       
-      // If no session, try getUser
-      user = session?.user
-      if (!user) {
-        const {
-          data: { user: userData },
-          error: authError,
-        } = await supabase.auth.getUser()
-        
-        if (authError || !userData) {
-          console.error('Authentication error:', authError || sessionError)
-          return NextResponse.json(
-            { error: 'Unauthorized. Please sign in to view your subscription status.' },
-            { status: 401 }
-          )
-        }
-        
-        user = userData
+      if (sessionError || !session?.user) {
+        console.error('Authentication error (cookie-based):', sessionError)
+        return NextResponse.json(
+          { error: 'Unauthorized. Please sign in to view your subscription status.' },
+          { status: 401 }
+        )
       }
+      user = session.user
+    } else {
+      // Use Authorization header token (more reliable, like task-app)
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        return NextResponse.json(
+          { error: 'Supabase configuration is missing' },
+          { status: 500 }
+        )
+      }
+      
+      supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      })
+      
+      const { data: { user: userData }, error: tokenError } = await supabase.auth.getUser()
+      
+      if (tokenError || !userData) {
+        console.error('Authentication error (token-based):', tokenError)
+        return NextResponse.json(
+          { error: 'Unauthorized. Please sign in to view your subscription status.' },
+          { status: 401 }
+        )
+      }
+      
+      user = userData
     }
     
     if (!user || !supabase) {
+      console.error('No user or supabase client available')
       return NextResponse.json(
         { error: 'Unauthorized. Please sign in to view your subscription status.' },
         { status: 401 }
       )
     }
+    
+    console.log(`🔎 Authenticated user for subscription status: ${user.id}`)
 
     // Get user's subscription
     const { data: subscription, error } = await supabase
