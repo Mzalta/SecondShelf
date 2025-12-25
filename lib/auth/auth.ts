@@ -1,13 +1,19 @@
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle(returnTo?: string) {
   try {
     const supabase = createClient()
     
     // Get the current origin (works for both localhost and production)
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
-    const redirectTo = origin ? `${origin}/auth/callback` : 'https://second-shelf.vercel.app/auth/callback'
+    const baseRedirectTo = origin ? `${origin}/auth/callback` : 'https://second-shelf.vercel.app/auth/callback'
+    
+    // If returnTo is provided, add it as a query parameter so the callback can redirect there
+    // OAuth providers preserve query parameters in the redirect_uri
+    const redirectTo = returnTo 
+      ? `${baseRedirectTo}?returnTo=${encodeURIComponent(returnTo)}`
+      : baseRedirectTo
     
     console.log('OAuth redirect URL:', redirectTo)
     

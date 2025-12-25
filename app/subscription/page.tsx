@@ -113,7 +113,8 @@ export default function SubscriptionPage() {
   const handleSignIn = async () => {
     try {
       setProcessing(true)
-      await signInWithGoogle()
+      // Pass the current pathname so we redirect back here after login
+      await signInWithGoogle('/subscription')
       // Redirect will happen automatically via OAuth
     } catch (err: any) {
       setError(err.message || 'Failed to sign in')

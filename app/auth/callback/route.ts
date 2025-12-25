@@ -4,13 +4,17 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  let returnTo = requestUrl.searchParams.get('returnTo')
 
   if (code) {
     const supabase = createClient()
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  // URL to redirect to after sign in process completes
-  return NextResponse.redirect(new URL('/', requestUrl.origin))
+  // If returnTo wasn't in the URL (OAuth might have stripped it), 
+  // we'll rely on client-side code to read from sessionStorage
+  // For now, if we have it, use it; otherwise redirect to home
+  const redirectUrl = returnTo ? new URL(returnTo, requestUrl.origin) : new URL('/', requestUrl.origin)
+  return NextResponse.redirect(redirectUrl)
 }
 
