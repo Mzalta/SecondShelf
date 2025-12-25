@@ -6,6 +6,7 @@ import { getFavoriteBooks } from '@/lib/api/favorites'
 import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
 import BookCard from '@/components/features/books/BookCard'
 import BookGrid from '@/components/features/books/BookGrid'
+import EditListingDialog from '@/components/features/books/EditListingDialog'
 import EmptyState from '@/components/ui/EmptyState'
 import Loading from '@/components/ui/Loading'
 import Button from '@/components/ui/Button'
@@ -20,11 +21,14 @@ export default function FavoritesPage() {
     markAsSold,
     removeListing,
     setCurrentUser,
-    fetchFavorites
+    fetchFavorites,
+    fetchBooks
   } = useBookStore()
   const [favoriteBooks, setFavoriteBooks] = useState<Book[]>([])
   const [loadingFavorites, setLoadingFavorites] = useState(true)
   const [checkingAuth, setCheckingAuth] = useState(true)
+  const [editingBook, setEditingBook] = useState<Book | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   
   // Check authentication and fetch favorites on mount
   useEffect(() => {
@@ -62,6 +66,24 @@ export default function FavoritesPage() {
     } catch (error) {
       console.error('Error deleting book:', error)
     }
+  }
+  
+  const handleEdit = (book: Book) => {
+    setEditingBook(book)
+    setIsEditDialogOpen(true)
+  }
+  
+  const handleEditClose = () => {
+    setIsEditDialogOpen(false)
+    setEditingBook(null)
+  }
+  
+  const handleEditSuccess = async () => {
+    // Refresh favorites list after editing
+    const favorites = await getFavoriteBooks()
+    setFavoriteBooks(favorites)
+    // Also refresh all books list to keep it in sync
+    await fetchBooks()
   }
   
   if (checkingAuth || loadingFavorites) {
@@ -126,10 +148,21 @@ export default function FavoritesPage() {
               onToggleFavorite={() => toggleFavorite(book.id!)}
               onMarkAsSold={isOwner ? () => markAsSold(book.id!) : undefined}
               onDelete={isOwner ? () => handleDelete(book.id!) : undefined}
+              onEdit={isOwner ? () => handleEdit(book) : undefined}
             />
           )
         })}
       </BookGrid>
+      
+      {/* Edit Dialog */}
+      {editingBook && (
+        <EditListingDialog
+          book={editingBook}
+          isOpen={isEditDialogOpen}
+          onClose={handleEditClose}
+          onSuccess={handleEditSuccess}
+        />
+      )}
     </section>
   )
 }

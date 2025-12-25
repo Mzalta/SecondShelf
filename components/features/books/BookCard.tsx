@@ -2,7 +2,7 @@
 
 import { Book } from '@/types'
 import Button from '@/components/ui/Button'
-import { Heart, HeartOff, ShoppingBag, Trash2, Mail, Phone } from 'lucide-react'
+import { Heart, HeartOff, ShoppingBag, Trash2, Mail, Phone, Edit } from 'lucide-react'
 
 interface BookCardProps {
   book: Book
@@ -11,6 +11,7 @@ interface BookCardProps {
   onToggleFavorite: () => void
   onMarkAsSold?: () => void
   onDelete?: () => void
+  onEdit?: () => void
 }
 
 export default function BookCard({
@@ -19,7 +20,8 @@ export default function BookCard({
   isOwner = false,
   onToggleFavorite,
   onMarkAsSold,
-  onDelete
+  onDelete,
+  onEdit
 }: BookCardProps) {
   // Extract price value for display
   const priceValue = book.price.replace(/[^0-9.]/g, '')
@@ -106,6 +108,16 @@ export default function BookCard({
                   Save to Favorites
                 </>
               )}
+            </button>
+          )}
+
+          {isOwner && !book.sold && onEdit && (
+            <button
+              onClick={onEdit}
+              className="w-full py-2 px-4 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <Edit size={16} />
+              Edit Listing
             </button>
           )}
 

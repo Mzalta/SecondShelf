@@ -5,11 +5,13 @@ import Link from 'next/link'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
 import BookList from '@/components/features/books/BookList'
+import EditListingDialog from '@/components/features/books/EditListingDialog'
 import EmptyState from '@/components/ui/EmptyState'
 import Loading from '@/components/ui/Loading'
 import Button from '@/components/ui/Button'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { Plus } from 'lucide-react'
+import { Book } from '@/types'
 
 export default function MyShelfPage() {
   const { 
@@ -27,6 +29,8 @@ export default function MyShelfPage() {
     clearError
   } = useBookStore()
   const [checkingAuth, setCheckingAuth] = useState(true)
+  const [editingBook, setEditingBook] = useState<Book | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   
   // Check authentication and fetch user's books on mount
   useEffect(() => {
@@ -69,6 +73,21 @@ export default function MyShelfPage() {
     } catch (error) {
       console.error('Error marking book as sold:', error)
     }
+  }
+  
+  const handleEdit = (book: Book) => {
+    setEditingBook(book)
+    setIsEditDialogOpen(true)
+  }
+  
+  const handleEditClose = () => {
+    setIsEditDialogOpen(false)
+    setEditingBook(null)
+  }
+  
+  const handleEditSuccess = async () => {
+    // Refresh the list after editing
+    await fetchMyBooks()
   }
   
   if (checkingAuth) {
@@ -147,8 +166,19 @@ export default function MyShelfPage() {
             onToggleFavorite={toggleFavorite}
             onMarkAsSold={handleMarkAsSold}
             onDelete={handleDelete}
+            onEdit={handleEdit}
           />
         </div>
+      )}
+      
+      {/* Edit Dialog */}
+      {editingBook && (
+        <EditListingDialog
+          book={editingBook}
+          isOpen={isEditDialogOpen}
+          onClose={handleEditClose}
+          onSuccess={handleEditSuccess}
+        />
       )}
     </section>
   )

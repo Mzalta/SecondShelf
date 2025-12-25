@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { useSearch } from '@/lib/hooks/useSearch'
 import BookList from '@/components/features/books/BookList'
+import EditListingDialog from '@/components/features/books/EditListingDialog'
 import ResultsCount from '@/components/features/search/ResultsCount'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { getCurrentUser } from '@/lib/auth/auth'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
+import { Book } from '@/types'
 
 export default function HomePage() {
   const { 
@@ -27,6 +29,8 @@ export default function HomePage() {
   } = useBookStore()
   const [searchQuery, setSearchQuery] = useState('')
   const filteredBooks = useSearch(listings, searchQuery)
+  const [editingBook, setEditingBook] = useState<Book | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   
   // Get search query from URL params and update on navigation
   useEffect(() => {
@@ -62,6 +66,21 @@ export default function HomePage() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  
+  const handleEdit = (book: Book) => {
+    setEditingBook(book)
+    setIsEditDialogOpen(true)
+  }
+  
+  const handleEditClose = () => {
+    setIsEditDialogOpen(false)
+    setEditingBook(null)
+  }
+  
+  const handleEditSuccess = async () => {
+    // Refresh the list after editing
+    await fetchBooks()
+  }
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -112,8 +131,19 @@ export default function HomePage() {
           onToggleFavorite={toggleFavorite}
           onMarkAsSold={markAsSold}
           onDelete={removeListing}
+          onEdit={handleEdit}
         />
       </div>
+      
+      {/* Edit Dialog */}
+      {editingBook && (
+        <EditListingDialog
+          book={editingBook}
+          isOpen={isEditDialogOpen}
+          onClose={handleEditClose}
+          onSuccess={handleEditSuccess}
+        />
+      )}
     </div>
   )
 }

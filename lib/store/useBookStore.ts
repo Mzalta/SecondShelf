@@ -19,6 +19,7 @@ interface BookStore {
   fetchMyBooks: () => Promise<void>
   fetchFavorites: () => Promise<void>
   addListing: (bookData: BookFormData) => Promise<void>
+  updateListing: (id: string, bookData: BookFormData) => Promise<void>
   removeListing: (id: string) => Promise<void>
   toggleFavorite: (bookId: string) => Promise<void>
   markAsSold: (id: string) => Promise<void>
@@ -93,6 +94,27 @@ export const useBookStore = create<BookStore>((set, get) => ({
       set((state) => ({
         listings: [newBook, ...state.listings],
         myBooks: [newBook, ...state.myBooks],
+        loading: false
+      }))
+    } catch (error) {
+      const errorMessage = handleApiError(error)
+      set({ error: errorMessage, loading: false })
+      throw error // Re-throw so component can handle it
+    }
+  },
+  
+  // Update an existing book listing
+  updateListing: async (id: string, bookData: BookFormData) => {
+    set({ loading: true, error: null })
+    try {
+      const updatedBook = await booksApi.updateBook(id, bookData)
+      set((state) => ({
+        listings: state.listings.map((book) => 
+          book.id === id ? updatedBook : book
+        ),
+        myBooks: state.myBooks.map((book) => 
+          book.id === id ? updatedBook : book
+        ),
         loading: false
       }))
     } catch (error) {
