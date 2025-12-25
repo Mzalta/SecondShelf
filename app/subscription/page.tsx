@@ -188,7 +188,9 @@ export default function SubscriptionPage() {
         const data = await response.json().catch(() => ({}))
         const errorMessage = data.error || 'Failed to create checkout session'
         console.error('Checkout error:', errorMessage)
-        throw new Error(errorMessage)
+        setError(errorMessage)
+        setProcessing(false)
+        return
       }
 
       const data = await response.json()
@@ -197,10 +199,12 @@ export default function SubscriptionPage() {
       // Redirect to Stripe Checkout
       if (data.url) {
         console.log('Redirecting to:', data.url)
-        window.location.href = data.url
+        // Use window.location.assign instead of href to prevent page refresh issues
+        window.location.assign(data.url)
       } else {
         console.error('No URL in response')
-        throw new Error('No checkout URL received')
+        setError('No checkout URL received')
+        setProcessing(false)
       }
     } catch (err: any) {
       console.error('handleSubscribe error:', err)
@@ -391,40 +395,19 @@ export default function SubscriptionPage() {
             </div>
 
             <div>
-              <p className="text-xs text-gray-500 mb-2">
-                Debug: subscriptionStatus={subscriptionStatus ? 'exists' : 'null'}, 
-                isPro={subscriptionStatus?.isPro ? 'true' : 'false'}, 
-                processing={processing ? 'true' : 'false'}, 
-                user={user ? 'exists' : 'null'}
-              </p>
-              <button
-                type="button"
-                onClick={async (e) => {
+              <Button
+                variant="primary"
+                onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
                   console.log('=== BUTTON CLICKED ===')
-                  console.log('Event:', e)
-                  console.log('Processing state:', processing)
-                  console.log('User state:', user)
-                  alert('Button clicked! Check console for details.')
-                  await handleSubscribe()
+                  handleSubscribe()
                 }}
                 disabled={processing}
-                style={{ 
-                  width: '100%', 
-                  padding: '12px 24px',
-                  fontSize: '18px',
-                  fontWeight: '500',
-                  borderRadius: '8px',
-                  backgroundColor: processing ? '#9ca3af' : '#9333ea',
-                  color: 'white',
-                  border: 'none',
-                  cursor: processing ? 'not-allowed' : 'pointer',
-                  opacity: processing ? 0.5 : 1
-                }}
+                className="w-full text-lg py-3"
               >
                 {processing ? 'Processing...' : 'Subscribe to Pro'}
-              </button>
+              </Button>
             </div>
           </div>
         )}
