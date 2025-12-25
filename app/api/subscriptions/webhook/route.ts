@@ -58,15 +58,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    console.log(`📥 Received webhook event: ${event.type}, id: ${event.id}`)
+    
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
+        console.log(`🛒 Processing checkout.session.completed for session: ${session.id}`)
         await handleCheckoutCompleted(session, stripe, supabaseAdmin)
         break
       }
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
+        console.log(`🔄 Processing ${event.type} for subscription: ${subscription.id}, status: ${subscription.status}`)
         await handleSubscriptionUpdate(subscription, supabaseAdmin, stripe)
         break
       }
