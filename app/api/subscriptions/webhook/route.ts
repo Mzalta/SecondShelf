@@ -133,10 +133,10 @@ async function handleSubscriptionUpdate(
     .from('subscriptions')
     .select('user_id')
     .eq('stripe_customer_id', subscription.customer as string)
-    .single()
+    .maybeSingle()
 
   if (!existingSub) {
-    console.error('Subscription not found in database')
+    console.error('Subscription not found in database for customer:', subscription.customer)
     return
   }
 
@@ -182,7 +182,7 @@ async function handleInvoicePaymentSucceeded(
     .from('subscriptions')
     .select('user_id')
     .eq('stripe_subscription_id', subscription.id)
-    .single()
+    .maybeSingle()
 
   if (existingSub) {
     await upsertSubscription(subscription, existingSub.user_id, supabaseAdmin)
@@ -232,7 +232,7 @@ async function upsertSubscription(
   const { error } = await supabaseAdmin
     .from('subscriptions')
     .upsert(subscriptionData, {
-      onConflict: 'stripe_subscription_id',
+      onConflict: 'user_id',
     })
 
   if (error) {

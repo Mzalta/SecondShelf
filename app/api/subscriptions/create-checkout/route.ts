@@ -79,13 +79,13 @@ export async function POST(request: NextRequest) {
     let customerId: string
     
     // Check if user already has a customer ID
-    const { data: existingSub } = await supabase
+    const { data: existingSub, error: subQueryError } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')
       .eq('user_id', user.id)
       .not('stripe_customer_id', 'is', null)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (existingSub?.stripe_customer_id) {
       customerId = existingSub.stripe_customer_id
