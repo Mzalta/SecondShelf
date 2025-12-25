@@ -265,12 +265,12 @@ export default function SubscriptionPage() {
   if (!user && authHydrated) {
       return (
         <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6">Subscription</h1>
+          <h1 className="text-3xl font-bold mb-6">Manage Subscription</h1>
           <Card>
             <div className="text-center py-8">
               <h2 className="text-2xl font-bold mb-4">Sign In Required</h2>
               <p className="text-gray-600 mb-6">
-                Please sign in to view your subscription status and upgrade to Pro.
+                Please sign in to view your subscription status and manage your account.
               </p>
               <p className="text-sm text-gray-500 mb-4">
                 Use the Sign In button in the header to get started.
@@ -283,7 +283,7 @@ export default function SubscriptionPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Subscription</h1>
+      <h1 className="text-3xl font-bold mb-6">Manage Subscription</h1>
 
       {error && (
         <ErrorDisplay
@@ -319,25 +319,32 @@ export default function SubscriptionPage() {
             </div>
 
             {subscriptionStatus.subscription && (
-              <div className="space-y-3 mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="flex justify-between">
+              <div className="space-y-4 mb-6 p-5 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center">
                   <span className="text-gray-600">Status:</span>
-                  <span className="font-semibold capitalize">
+                  <span className="font-semibold capitalize px-3 py-1 bg-white rounded">
                     {subscriptionStatus.subscription.status}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Current Period:</span>
-                  <span className="font-semibold">
-                    {formatDate(subscriptionStatus.subscription.current_period_start)} - {formatDate(subscriptionStatus.subscription.current_period_end)}
-                  </span>
-                </div>
-                {subscriptionStatus.subscription.cancel_at_period_end && (
-                  <div className="flex justify-between text-yellow-600">
-                    <span>Will cancel on:</span>
-                    <span className="font-semibold">
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="mb-3">
+                    <span className="text-sm text-gray-500 block mb-1">Subscription Expires:</span>
+                    <span className="text-lg font-bold text-gray-900">
                       {formatDate(subscriptionStatus.subscription.current_period_end)}
                     </span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Current Period: {formatDate(subscriptionStatus.subscription.current_period_start)} - {formatDate(subscriptionStatus.subscription.current_period_end)}
+                  </div>
+                </div>
+                {subscriptionStatus.subscription.cancel_at_period_end && (
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <div className="flex justify-between items-center">
+                      <span className="text-yellow-800 font-medium">Will cancel on:</span>
+                      <span className="font-semibold text-yellow-900">
+                        {formatDate(subscriptionStatus.subscription.current_period_end)}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -366,6 +373,11 @@ export default function SubscriptionPage() {
         ) : (
           <div>
             <div className="text-center mb-8">
+              <div className="mb-4">
+                <span className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold text-sm">
+                  Free Account
+                </span>
+              </div>
               <h2 className="text-2xl font-bold mb-4">Upgrade to Pro</h2>
               <p className="text-gray-600 mb-6">
                 Get unlimited access to all features with a monthly subscription
