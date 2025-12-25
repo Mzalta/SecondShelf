@@ -91,7 +91,7 @@ export default function SubscriptionPage() {
   // Handle success parameter - fetch status once (status API will sync from Stripe if needed)
   useEffect(() => {
     if (success === 'true' && user && authHydrated) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
         if (session) {
           // Status API will aggressively sync from Stripe, so just fetch once
           fetchSubscriptionStatus(session)
