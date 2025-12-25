@@ -229,15 +229,55 @@ async function upsertSubscription(
     updated_at: new Date().toISOString(),
   }
 
-  const { error } = await supabaseAdmin
+  // Check if subscription exists for this user
+  const { data: existingSub } = await supabaseAdmin
     .from('subscriptions')
-    .upsert(subscriptionData, {
-      onConflict: 'user_id',
-    })
+    .select('id, stripe_subscription_id')
+    .eq('user_id', userId)
+    .maybeSingle()
 
-  if (error) {
-    console.error('Error upserting subscription:', error)
-    throw error
+  if (existingSub) {
+    // If subscription_id changed, we need to handle the unique constraint
+    // Delete any subscription with the new subscription_id if it exists for a different user
+    if (existingSub.stripe_subscription_id !== subscription.id) {
+      const { error: deleteError } = await supabaseAdmin
+        .from('subscriptions')
+        .delete()
+        .eq('stripe_subscription_id', subscription.id)
+        .neq('user_id', userId)
+
+      if (deleteError) {
+        console.warn('Warning deleting conflicting subscription:', deleteError)
+        // Continue anyway - the update might still work
+      }
+    }
+
+    // Update existing subscription
+    const { error: updateError } = await supabaseAdmin
+      .from('subscriptions')
+      .update(subscriptionData)
+      .eq('user_id', userId)
+
+    if (updateError) {
+      console.error('Error updating subscription:', updateError)
+      throw updateError
+    }
+  } else {
+    // Insert new subscription
+    // First, delete any subscription with this subscription_id if it exists (shouldn't happen, but safety check)
+    await supabaseAdmin
+      .from('subscriptions')
+      .delete()
+      .eq('stripe_subscription_id', subscription.id)
+
+    const { error: insertError } = await supabaseAdmin
+      .from('subscriptions')
+      .insert(subscriptionData)
+
+    if (insertError) {
+      console.error('Error inserting subscription:', insertError)
+      throw insertError
+    }
   }
 }
 
