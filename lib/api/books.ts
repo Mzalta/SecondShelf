@@ -38,6 +38,7 @@ function bookToDbFormat(book: BookFormData | Partial<Book>): Partial<DatabaseBoo
 
 /**
  * Fetch all books from the database
+ * Excludes sold books from public listings
  */
 export async function getAllBooks(): Promise<Book[]> {
   const supabase = createClient()
@@ -45,6 +46,7 @@ export async function getAllBooks(): Promise<Book[]> {
   const { data, error } = await supabase
     .from('books')
     .select('*')
+    .eq('sold', false)
     .order('created_at', { ascending: false })
   
   if (error) {
