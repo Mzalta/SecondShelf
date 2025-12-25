@@ -390,18 +390,42 @@ export default function SubscriptionPage() {
               </div>
             </div>
 
-            <Button
-              variant="primary"
-              onClick={(e) => {
-                e.preventDefault()
-                console.log('Button clicked')
-                handleSubscribe()
-              }}
-              disabled={processing}
-              className="w-full text-lg py-3"
-            >
-              {processing ? 'Processing...' : 'Subscribe to Pro'}
-            </Button>
+            <div>
+              <p className="text-xs text-gray-500 mb-2">
+                Debug: subscriptionStatus={subscriptionStatus ? 'exists' : 'null'}, 
+                isPro={subscriptionStatus?.isPro ? 'true' : 'false'}, 
+                processing={processing ? 'true' : 'false'}, 
+                user={user ? 'exists' : 'null'}
+              </p>
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('=== BUTTON CLICKED ===')
+                  console.log('Event:', e)
+                  console.log('Processing state:', processing)
+                  console.log('User state:', user)
+                  alert('Button clicked! Check console for details.')
+                  await handleSubscribe()
+                }}
+                disabled={processing}
+                style={{ 
+                  width: '100%', 
+                  padding: '12px 24px',
+                  fontSize: '18px',
+                  fontWeight: '500',
+                  borderRadius: '8px',
+                  backgroundColor: processing ? '#9ca3af' : '#9333ea',
+                  color: 'white',
+                  border: 'none',
+                  cursor: processing ? 'not-allowed' : 'pointer',
+                  opacity: processing ? 0.5 : 1
+                }}
+              >
+                {processing ? 'Processing...' : 'Subscribe to Pro'}
+              </button>
+            </div>
           </div>
         )}
       </Card>
