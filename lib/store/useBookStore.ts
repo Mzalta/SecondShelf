@@ -23,6 +23,7 @@ interface BookStore {
   removeListing: (id: string) => Promise<void>
   toggleFavorite: (bookId: string) => Promise<void>
   markAsSold: (id: string) => Promise<void>
+  markAsUnsold: (id: string) => Promise<void>
   setCurrentUser: (user: User | null) => void
   setError: (error: string | null) => void
   clearError: () => void
@@ -181,6 +182,30 @@ export const useBookStore = create<BookStore>((set, get) => ({
         ),
         favoriteIds: new Set(
           Array.from(state.favoriteIds).filter((favId) => favId !== id)
+        )
+      }))
+      set({ loading: false })
+    } catch (error) {
+      const errorMessage = handleApiError(error)
+      set({ error: errorMessage, loading: false })
+      throw error
+    }
+  },
+  
+  // Unmark a book as sold (relist it)
+  // Adds back to public listings and moves from Sold to Active section
+  markAsUnsold: async (id: string) => {
+    set({ loading: true, error: null })
+    try {
+      const updatedBook = await booksApi.markAsUnsold(id)
+      set((state) => ({
+        // Add back to public listings if not already there
+        listings: state.listings.some((book) => book.id === id)
+          ? state.listings.map((book) => book.id === id ? updatedBook : book)
+          : [updatedBook, ...state.listings],
+        // Update in myBooks to move from Sold to Active section
+        myBooks: state.myBooks.map((book) => 
+          book.id === id ? updatedBook : book
         )
       }))
       set({ loading: false })

@@ -10,6 +10,7 @@ interface BookCardProps {
   isOwner?: boolean
   onToggleFavorite: () => void
   onMarkAsSold?: () => void
+  onMarkAsUnsold?: () => void
   onDelete?: () => void
   onEdit?: () => void
 }
@@ -20,6 +21,7 @@ export default function BookCard({
   isOwner = false,
   onToggleFavorite,
   onMarkAsSold,
+  onMarkAsUnsold,
   onDelete,
   onEdit
 }: BookCardProps) {
@@ -128,6 +130,16 @@ export default function BookCard({
             >
               <ShoppingBag size={16} />
               Mark as Sold
+            </button>
+          )}
+
+          {isOwner && book.sold && onMarkAsUnsold && (
+            <button
+              onClick={onMarkAsUnsold}
+              className="w-full py-2 px-4 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <ShoppingBag size={16} />
+              Relist Book
             </button>
           )}
 

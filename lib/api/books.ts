@@ -255,6 +255,14 @@ export async function markAsSold(id: string): Promise<Book> {
 }
 
 /**
+ * Unmark a book as sold (relist it)
+ * Only the owner can unmark their own book as sold
+ */
+export async function markAsUnsold(id: string): Promise<Book> {
+  return updateBook(id, { sold: false })
+}
+
+/**
  * Search and filter books
  */
 export async function searchBooks(filters: Filters): Promise<Book[]> {
