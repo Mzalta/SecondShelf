@@ -1,14 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { upsertSubscriptionFromStripe, getUserIdFromCustomer } from '@/lib/stripe/subscriptions'
 
 // Disable body parsing for webhook route
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
+ * Log webhook failure to database for monitoring
+ */
+async function logWebhookFailure(
+  eventId: string | undefined,
+  eventType: string,
+  error: Error | string,
+  supabaseAdmin: SupabaseClient<any>
+) {
+  try {
+    await supabaseAdmin.from('webhook_failures').insert({
+      event_id: eventId,
+      event_type: eventType,
+      error: typeof error === 'string' ? error : error.message,
+    })
+    console.error(`❌ Logged webhook failure: event=${eventId}, type=${eventType}`)
+  } catch (logError) {
+    console.error('Failed to log webhook failure:', logError)
+  }
+}
+
+/**
  * POST /api/subscriptions/webhook
  * Handles Stripe webhook events for subscriptions
+ * Stripe is the source of truth - all subscription state comes from Stripe
  */
 export async function POST(request: NextRequest) {
   // Initialize clients lazily (only when route is called, not during build)
@@ -63,30 +86,18 @@ export async function POST(request: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        console.log(`🛒 Processing checkout.session.completed for session: ${session.id}`)
-        await handleCheckoutCompleted(session, stripe, supabaseAdmin)
+        await handleCheckoutCompleted(session, stripe, supabaseAdmin, event.id)
         break
       }
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
-        console.log(`🔄 Processing ${event.type} for subscription: ${subscription.id}, status: ${subscription.status}`)
-        await handleSubscriptionUpdate(subscription, supabaseAdmin, stripe)
+        await handleSubscriptionUpdate(subscription, supabaseAdmin, stripe, event.id)
         break
       }
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
-        await handleSubscriptionDeleted(subscription, supabaseAdmin)
-        break
-      }
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as Stripe.Invoice
-        await handleInvoicePaymentSucceeded(invoice, stripe, supabaseAdmin)
-        break
-      }
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice
-        await handleInvoicePaymentFailed(invoice, supabaseAdmin)
+        await handleSubscriptionDeleted(subscription, supabaseAdmin, stripe, event.id)
         break
       }
       default:
@@ -95,7 +106,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true })
   } catch (error: any) {
-    console.error('Error processing webhook:', error)
+    console.error(`❌ Error processing webhook event ${event.id} (${event.type}):`, error)
+    
+    // Log failure to database for monitoring
+    await logWebhookFailure(event.id, event.type, error, supabaseAdmin)
+    
     return NextResponse.json(
       { error: 'Webhook handler failed' },
       { status: 500 }
@@ -103,10 +118,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Handle checkout.session.completed event
+ * User lookup order: session.metadata.user_id > customer.metadata > subscriptions table
+ */
 async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
   stripe: Stripe,
-  supabaseAdmin: SupabaseClient<any>
+  supabaseAdmin: SupabaseClient<any>,
+  eventId: string
 ) {
   if (session.mode !== 'subscription' || !session.subscription) {
     console.log('Skipping checkout.session.completed - not a subscription or no subscription ID')
@@ -115,56 +135,27 @@ async function handleCheckoutCompleted(
 
   console.log(`🛒 Processing checkout.session.completed for session: ${session.id}, subscription: ${session.subscription}`)
 
-  // Try to get user_id from session metadata first
-  let userId = session.metadata?.user_id
-  console.log(`User ID from session metadata: ${userId || 'not found'}`)
+  // User lookup order: session metadata > customer metadata > subscriptions table
+  let userId = session.metadata?.user_id as string | undefined
   
-  // If not in metadata, try to get it from Stripe customer metadata
   if (!userId && session.customer) {
-    try {
-      const customer = await stripe.customers.retrieve(session.customer as string)
-      if (customer && !customer.deleted && customer.metadata?.supabase_user_id) {
-        userId = customer.metadata.supabase_user_id
-        console.log(`✅ Retrieved user_id from customer metadata: ${userId}`)
-      }
-    } catch (error) {
-      console.error('Error retrieving customer from Stripe:', error)
-    }
-  }
-  
-  // CRITICAL FIX: If still no userId, try to find user by customer_id in subscriptions table
-  // This matches task-app's approach and ensures we can always find the user
-  if (!userId && session.customer) {
-    try {
-      const { data: existingSub, error: queryError } = await supabaseAdmin
-        .from('subscriptions')
-        .select('user_id')
-        .eq('stripe_customer_id', session.customer as string)
-        .maybeSingle()
-      
-      if (queryError) {
-        console.error('Error querying subscriptions table:', queryError)
-      } else if (existingSub?.user_id) {
-        userId = existingSub.user_id
-        console.log(`✅ Retrieved user_id from subscriptions table by customer_id: ${userId}`)
-      }
-    } catch (error) {
-      console.error('Error querying subscriptions table:', error)
-    }
+    userId = await getUserIdFromCustomer(session.customer as string, stripe, supabaseAdmin) || undefined
   }
 
   if (!userId) {
-    console.error('❌ No user_id found in checkout session metadata, customer metadata, or subscriptions table')
+    const error = new Error(`Cannot process checkout.session.completed: No user_id found for customer ${session.customer}`)
+    console.error('❌', error.message)
     console.error('Session customer:', session.customer)
     console.error('Session metadata:', session.metadata)
-    throw new Error(`Cannot process checkout.session.completed: No user_id found for customer ${session.customer}`)
+    throw error
   }
 
-  // Get subscription details from Stripe
+  // Fetch full subscription from Stripe (source of truth)
   let subscription: Stripe.Subscription
   try {
     subscription = await stripe.subscriptions.retrieve(
-      session.subscription as string
+      session.subscription as string,
+      { expand: ['customer'] }
     )
     console.log(`📋 Retrieved subscription from Stripe: ${subscription.id}, status: ${subscription.status}`)
   } catch (error) {
@@ -172,265 +163,113 @@ async function handleCheckoutCompleted(
     throw error
   }
 
+  // Upsert using canonical helper (idempotent)
   try {
-    await upsertSubscription(subscription, userId, supabaseAdmin)
-    console.log(`✅ Checkout completed and subscription updated for user: ${userId}, subscription: ${subscription.id}, status: ${subscription.status}`)
+    await upsertSubscriptionFromStripe(subscription, userId, supabaseAdmin)
+    console.log(`✅ Checkout completed and subscription synced: ${subscription.id}, status: ${subscription.status}, user: ${userId}`)
   } catch (error) {
     console.error('Error upserting subscription:', error)
     throw error
   }
 }
 
+/**
+ * Handle customer.subscription.created and customer.subscription.updated events
+ * User lookup order: customer.metadata > subscriptions table
+ */
 async function handleSubscriptionUpdate(
   subscription: Stripe.Subscription,
   supabaseAdmin: SupabaseClient<any>,
-  stripe: Stripe
+  stripe: Stripe,
+  eventId: string
 ) {
-  // Try to find user by customer ID in database first (like task-app does)
-  const { data: existingSub } = await supabaseAdmin
-    .from('subscriptions')
-    .select('user_id')
-    .eq('stripe_customer_id', subscription.customer as string)
-    .maybeSingle()
+  console.log(`🔄 Processing ${eventId} for subscription: ${subscription.id}, status: ${subscription.status}`)
 
-  let userId = existingSub?.user_id
-
-  // If not found in DB, try to get user_id from Stripe customer metadata
-  if (!userId && subscription.customer) {
-    try {
-      const customer = await stripe.customers.retrieve(subscription.customer as string)
-      if (customer && !customer.deleted && customer.metadata?.supabase_user_id) {
-        userId = customer.metadata.supabase_user_id
-        console.log(`Retrieved user_id from customer metadata: ${userId}`)
-      }
-    } catch (error) {
-      console.error('Error retrieving customer from Stripe:', error)
-    }
+  // User lookup order: customer metadata > subscriptions table
+  let userId: string | null = null
+  
+  if (subscription.customer) {
+    userId = await getUserIdFromCustomer(subscription.customer as string, stripe, supabaseAdmin)
   }
 
   if (!userId) {
-    console.error('Subscription not found in database and no user_id in customer metadata for customer:', subscription.customer)
+    console.error(`⚠️ Subscription ${subscription.id} not found in database and no user_id in customer metadata`)
+    console.error('Customer:', subscription.customer)
+    // Don't throw - just log and skip (webhook may be for a subscription we don't manage)
     return
   }
 
-  await upsertSubscription(subscription, userId, supabaseAdmin)
-  console.log(`Subscription updated: ${subscription.id}`)
-}
-
-async function handleSubscriptionDeleted(
-  subscription: Stripe.Subscription,
-  supabaseAdmin: SupabaseClient<any>
-) {
-  const { error } = await supabaseAdmin
-    .from('subscriptions')
-    .update({
-      status: 'canceled',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('stripe_subscription_id', subscription.id)
-
-  if (error) {
-    console.error('Error updating subscription status to canceled:', error)
-    throw error
+  // Fetch full subscription from Stripe to ensure we have latest state
+  let fullSubscription: Stripe.Subscription
+  try {
+    fullSubscription = await stripe.subscriptions.retrieve(subscription.id)
+  } catch (error) {
+    console.error('Error retrieving full subscription from Stripe:', error)
+    // Use the subscription from the event if retrieval fails
+    fullSubscription = subscription
   }
 
-  console.log(`Subscription canceled: ${subscription.id}`)
+  // Upsert using canonical helper (idempotent)
+  await upsertSubscriptionFromStripe(fullSubscription, userId, supabaseAdmin)
+  console.log(`✅ Subscription synced: ${fullSubscription.id}, status: ${fullSubscription.status}, user: ${userId}`)
 }
 
-async function handleInvoicePaymentSucceeded(
-  invoice: Stripe.Invoice,
+/**
+ * Handle customer.subscription.deleted event
+ * Fetch final state from Stripe before marking as canceled
+ */
+async function handleSubscriptionDeleted(
+  subscription: Stripe.Subscription,
+  supabaseAdmin: SupabaseClient<any>,
   stripe: Stripe,
-  supabaseAdmin: SupabaseClient<any>
+  eventId: string
 ) {
-  // Access subscription property with type assertion for API compatibility
-  const subscriptionId = (invoice as any).subscription
+  console.log(`🗑️ Processing customer.subscription.deleted for subscription: ${subscription.id}`)
+
+  // Fetch subscription from Stripe to get final state (it may have expandable fields)
+  let fullSubscription: Stripe.Subscription
+  try {
+    fullSubscription = await stripe.subscriptions.retrieve(subscription.id)
+  } catch (error) {
+    // If subscription is already deleted, Stripe may return 404
+    // Use the subscription from the event
+    console.log('Subscription already deleted in Stripe, using event data')
+    fullSubscription = subscription
+  }
+
+  // User lookup: subscriptions table > customer metadata
+  let userId: string | null = null
   
-  if (!subscriptionId || typeof subscriptionId !== 'string') return
-
-  const subscription = await stripe.subscriptions.retrieve(
-    subscriptionId
-  )
-
-  // Try to find user by subscription ID in database first
+  // Try by subscription ID first
   const { data: existingSub } = await supabaseAdmin
     .from('subscriptions')
     .select('user_id')
-    .eq('stripe_subscription_id', subscription.id)
+    .eq('stripe_subscription_id', fullSubscription.id)
     .maybeSingle()
 
-  let userId = existingSub?.user_id
+  userId = existingSub?.user_id || null
 
-  // If not found by subscription ID, try by customer ID (like task-app does)
-  if (!userId && subscription.customer) {
-    const { data: customerSub } = await supabaseAdmin
-      .from('subscriptions')
-      .select('user_id')
-      .eq('stripe_customer_id', subscription.customer as string)
-      .maybeSingle()
-    
-    if (customerSub?.user_id) {
-      userId = customerSub.user_id
-      console.log(`Retrieved user_id from subscriptions table by customer_id: ${userId}`)
-    }
+  // If not found, try by customer ID
+  if (!userId && fullSubscription.customer) {
+    userId = await getUserIdFromCustomer(fullSubscription.customer as string, stripe, supabaseAdmin)
   }
 
-  // If still not found, try to get user_id from Stripe customer metadata
-  if (!userId && subscription.customer) {
-    try {
-      const customer = await stripe.customers.retrieve(subscription.customer as string)
-      if (customer && !customer.deleted && customer.metadata?.supabase_user_id) {
-        userId = customer.metadata.supabase_user_id
-        console.log(`Retrieved user_id from customer metadata: ${userId}`)
-      }
-    } catch (error) {
-      console.error('Error retrieving customer from Stripe:', error)
-    }
-  }
-
-  if (userId) {
-    await upsertSubscription(subscription, userId, supabaseAdmin)
-    console.log(`Invoice payment succeeded for subscription: ${subscription.id}`)
-  } else {
-    console.error('Could not find user_id for subscription:', subscription.id)
-  }
-}
-
-async function handleInvoicePaymentFailed(
-  invoice: Stripe.Invoice,
-  supabaseAdmin: SupabaseClient<any>
-) {
-  const subscriptionId = (invoice as any).subscription
-  if (!subscriptionId || typeof subscriptionId !== 'string') return
-
-  const { error } = await supabaseAdmin
-    .from('subscriptions')
-    .update({
-      status: 'past_due',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('stripe_subscription_id', subscriptionId)
-
-  if (error) {
-    console.error('Error updating subscription status to past_due:', error)
-    throw error
-  }
-
-  console.log(`Invoice payment failed for subscription: ${subscriptionId}`)
-}
-
-async function upsertSubscription(
-  subscription: Stripe.Subscription,
-  userId: string,
-  supabaseAdmin: SupabaseClient<any>
-) {
-  const subscriptionData = {
-    user_id: userId,
-    stripe_subscription_id: subscription.id,
-    stripe_customer_id: subscription.customer as string,
-    status: subscription.status, // This will be 'active', 'trialing', etc. from Stripe
-    current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
-    current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
-    cancel_at_period_end: subscription.cancel_at_period_end,
-    updated_at: new Date().toISOString(),
-  }
-
-  console.log(`🔄 Upserting subscription: ${subscription.id}, status: ${subscription.status}, user: ${userId}`)
-
-  // Check if subscription exists for this user (including placeholder records)
-  const { data: existingSub, error: queryError } = await supabaseAdmin
-    .from('subscriptions')
-    .select('id, stripe_subscription_id, status')
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (queryError && queryError.code !== 'PGRST116') {
-    // PGRST116 means no rows found, which is fine
-    console.error('Error querying existing subscription:', queryError)
-    throw queryError
-  }
-
-  const isPlaceholder = existingSub?.stripe_subscription_id?.startsWith('pending-')
-  const subscriptionIdChanged = existingSub && existingSub.stripe_subscription_id !== subscription.id
-  const statusIsPending = existingSub?.status === 'pending'
-
-  console.log(`Existing subscription found: ${!!existingSub}, isPlaceholder: ${isPlaceholder}, subscriptionIdChanged: ${subscriptionIdChanged}, statusIsPending: ${statusIsPending}`)
-
-  // If we have a placeholder or the subscription ID changed, we need to handle the unique constraint
-  // by deleting the old record first, then inserting/updating
-  if (isPlaceholder || subscriptionIdChanged) {
-    console.log(`🔄 Replacing placeholder or changed subscription...`)
-    
-    // Delete any existing subscription with the new subscription_id (for safety, in case it exists)
-    const { error: deleteBySubIdError } = await supabaseAdmin
-      .from('subscriptions')
-      .delete()
-      .eq('stripe_subscription_id', subscription.id)
-
-    if (deleteBySubIdError) {
-      console.error('Error deleting subscription by subscription_id:', deleteBySubIdError)
-    }
-
-    // If there's an existing subscription for this user (placeholder or old subscription), delete it
-    if (existingSub) {
-      const { error: deleteError } = await supabaseAdmin
-        .from('subscriptions')
-        .delete()
-        .eq('user_id', userId)
-
-      if (deleteError) {
-        console.error('Error deleting existing subscription:', deleteError)
-        throw deleteError
-      }
-      console.log(`✅ Deleted existing subscription record`)
-    }
-
-    // Now insert the new subscription with the real subscription ID
-    const { error: insertError, data: insertedData } = await supabaseAdmin
-      .from('subscriptions')
-      .insert(subscriptionData)
-      .select()
-
-    if (insertError) {
-      console.error('Error inserting subscription after deleting placeholder:', insertError)
-      throw insertError
-    }
-
-    console.log(`✅ Successfully replaced placeholder subscription with real subscription: ${subscription.id}, status: ${subscription.status}`)
-  } else if (existingSub) {
-    // Subscription exists and ID hasn't changed - just update it
-    // CRITICAL: Always update status, especially if it's currently 'pending'
-    const { error: updateError, data: updatedData } = await supabaseAdmin
-      .from('subscriptions')
-      .update(subscriptionData)
-      .eq('user_id', userId)
-      .select()
-
-    if (updateError) {
-      console.error('Error updating subscription:', updateError)
-      throw updateError
-    }
-
-    console.log(`✅ Successfully updated subscription: ${subscription.id}, status changed from '${existingSub.status}' to '${subscription.status}'`)
-  } else {
-    // No existing subscription - insert new one
-    // First, delete any subscription with this subscription_id if it exists (shouldn't happen, but safety check)
+  if (!userId) {
+    console.error(`⚠️ Cannot find user_id for deleted subscription: ${fullSubscription.id}`)
+    // Still update status by subscription ID if we can
     await supabaseAdmin
       .from('subscriptions')
-      .delete()
-      .eq('stripe_subscription_id', subscription.id)
-
-    const { error: insertError, data: insertedData } = await supabaseAdmin
-      .from('subscriptions')
-      .insert(subscriptionData)
-      .select()
-
-    if (insertError) {
-      console.error('Error inserting subscription:', insertError)
-      throw insertError
-    }
-
-    console.log(`✅ Successfully inserted new subscription: ${subscription.id}, status: ${subscription.status}`)
+      .update({
+        status: 'canceled',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('stripe_subscription_id', fullSubscription.id)
+    
+    console.log(`✅ Updated subscription status to canceled: ${fullSubscription.id}`)
+    return
   }
+
+  // Update using canonical helper (status will be 'canceled')
+  await upsertSubscriptionFromStripe(fullSubscription, userId, supabaseAdmin)
+  console.log(`✅ Subscription deleted and synced: ${fullSubscription.id}, user: ${userId}`)
 }
-
-

@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create or retrieve Stripe customer
+    // DO NOT create subscription row here - only create it when webhook fires
     let customerId: string
     
     // Check if user already has a customer ID in any subscription record
@@ -89,64 +90,18 @@ export async function POST(request: NextRequest) {
       console.log(`✅ Found existing Stripe customer: ${customerId}`)
     } else {
       // Create new Stripe customer with user_id in metadata
+      // This is the ONLY database interaction we do here - storing customer_id
+      // Subscription row will be created ONLY when webhook fires
       console.log('📝 Creating new Stripe customer...')
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: {
-          supabase_user_id: user.id,
+          user_id: user.id, // Use user_id for consistency
+          supabase_user_id: user.id, // Also include for backward compatibility
         },
       })
       customerId = customer.id
-      
-      // Store customer ID in database BEFORE redirecting to Stripe
-      const placeholderSubscriptionId = `pending-${user.id}-${Date.now()}`
-      
-      // Check if a subscription record already exists for this user
-      const { data: existingRecord } = await supabase
-        .from('subscriptions')
-        .select('id, stripe_customer_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      
-      if (existingRecord) {
-        // Update existing record with customer ID
-        const { error: updateError } = await supabase
-          .from('subscriptions')
-          .update({ 
-            stripe_customer_id: customerId,
-            stripe_subscription_id: placeholderSubscriptionId,
-            status: 'pending',
-            current_period_start: new Date().toISOString(),
-            current_period_end: new Date().toISOString(),
-          })
-          .eq('user_id', user.id)
-        
-        if (updateError) {
-          console.error('Error updating subscription with customer ID:', updateError)
-        } else {
-          console.log(`✅ Updated existing subscription record with customer ID: ${customerId}`)
-        }
-      } else {
-        // Create new placeholder record
-        const { error: insertError } = await supabase
-          .from('subscriptions')
-          .insert({
-            user_id: user.id,
-            stripe_customer_id: customerId,
-            stripe_subscription_id: placeholderSubscriptionId,
-            status: 'pending',
-            current_period_start: new Date().toISOString(),
-            current_period_end: new Date().toISOString(),
-          })
-        
-        if (insertError) {
-          console.error('Error storing customer ID:', insertError)
-        } else {
-          console.log(`✅ Created placeholder subscription record with customer ID: ${customerId}`)
-        }
-      }
-      
-      console.log(`✅ Created and stored Stripe customer: ${customerId}`)
+      console.log(`✅ Created Stripe customer: ${customerId} (subscription will be created via webhook)`)
     }
 
     // Create Checkout Session
@@ -163,7 +118,13 @@ export async function POST(request: NextRequest) {
       success_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?success=true`,
       cancel_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?canceled=true`,
       metadata: {
-        user_id: user.id,
+        user_id: user.id, // Store user_id in checkout session metadata
+      },
+      customer_update: {
+        metadata: {
+          user_id: user.id, // Also ensure customer metadata has user_id
+          supabase_user_id: user.id,
+        },
       },
     })
 
