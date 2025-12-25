@@ -1,31 +1,16 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+/**
+ * @deprecated Use createBrowserClient from './browser' instead.
+ * This file is kept for backward compatibility but will delegate to browser.ts
+ */
+import { createBrowserClient } from './browser'
 
-let supabaseClient: ReturnType<typeof createSupabaseClient> | null = null
-
+/**
+ * Create a Supabase client for browser use.
+ * This is a wrapper around createBrowserClient to maintain backward compatibility.
+ * 
+ * @deprecated Import createBrowserClient from './browser' directly for new code.
+ */
 export function createClient() {
-  // Return cached client if available
-  if (supabaseClient) {
-    return supabaseClient
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error(
-      'Missing Supabase environment variables. Please check your .env.local file.'
-    )
-  }
-
-  // Create client directly from supabase-js to avoid ESM import issues
-  supabaseClient = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  })
-
-  return supabaseClient
+  return createBrowserClient()
 }
 
