@@ -22,9 +22,11 @@ export default function MyShelfPage() {
     error,
     toggleFavorite, 
     markAsSold,
+    markAsUnsold,
     removeListing,
     setCurrentUser,
     fetchMyBooks,
+    fetchBooks,
     fetchFavorites,
     clearError
   } = useBookStore()
@@ -72,6 +74,18 @@ export default function MyShelfPage() {
       await fetchMyBooks()
     } catch (error) {
       console.error('Error marking book as sold:', error)
+    }
+  }
+
+  const handleMarkAsUnsold = async (bookId: string) => {
+    try {
+      await markAsUnsold(bookId)
+      // Refresh the list after unmarking as sold
+      await fetchMyBooks()
+      // Also refresh public listings to show the book again
+      await fetchBooks()
+    } catch (error) {
+      console.error('Error unmarking book as sold:', error)
     }
   }
   
@@ -204,6 +218,7 @@ export default function MyShelfPage() {
                 isLoading={false}
                 onToggleFavorite={toggleFavorite}
                 onMarkAsSold={undefined}
+                onMarkAsUnsold={handleMarkAsUnsold}
                 onDelete={handleDelete}
                 onEdit={handleEdit}
               />
