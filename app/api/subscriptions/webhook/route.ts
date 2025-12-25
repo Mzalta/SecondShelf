@@ -351,9 +351,9 @@ async function upsertSubscription(
 
   const isPlaceholder = existingSub?.stripe_subscription_id?.startsWith('pending-')
   const subscriptionIdChanged = existingSub && existingSub.stripe_subscription_id !== subscription.id
-  const statusNeedsUpdate = existingSub && existingSub.status === 'pending' && subscription.status !== 'pending'
+  const statusIsPending = existingSub?.status === 'pending'
 
-  console.log(`Existing subscription found: ${!!existingSub}, isPlaceholder: ${isPlaceholder}, subscriptionIdChanged: ${subscriptionIdChanged}, statusNeedsUpdate: ${statusNeedsUpdate}`)
+  console.log(`Existing subscription found: ${!!existingSub}, isPlaceholder: ${isPlaceholder}, subscriptionIdChanged: ${subscriptionIdChanged}, statusIsPending: ${statusIsPending}`)
 
   // If we have a placeholder or the subscription ID changed, we need to handle the unique constraint
   // by deleting the old record first, then inserting/updating
