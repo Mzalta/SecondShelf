@@ -46,10 +46,13 @@ export default function SubscriptionPage() {
         return
       }
 
-      const response = await fetch('/api/subscriptions/status')
+      const response = await fetch('/api/subscriptions/status', {
+        credentials: 'include',
+      })
       
       if (!response.ok) {
-        throw new Error('Failed to fetch subscription status')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to fetch subscription status')
       }
 
       const data = await response.json()
@@ -69,6 +72,7 @@ export default function SubscriptionPage() {
 
       const response = await fetch('/api/subscriptions/create-checkout', {
         method: 'POST',
+        credentials: 'include',
       })
 
       if (!response.ok) {
