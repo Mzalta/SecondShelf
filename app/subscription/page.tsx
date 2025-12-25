@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Loading from '@/components/ui/Loading'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
-import { signInWithGoogle } from '@/lib/auth/auth'
+import { useBookStore } from '@/lib/store/useBookStore'
 
 interface SubscriptionStatus {
   subscription: any
@@ -15,32 +15,42 @@ interface SubscriptionStatus {
 }
 
 export default function SubscriptionPage() {
+  const { currentUser } = useBookStore()
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isUnauthorized, setIsUnauthorized] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const success = searchParams.get('success')
   const canceled = searchParams.get('canceled')
 
   useEffect(() => {
-    fetchSubscriptionStatus()
-    
-    if (success === 'true') {
-      // Refresh status after successful subscription
-      setTimeout(() => {
-        fetchSubscriptionStatus()
-      }, 2000)
+    // Only fetch subscription status if user is signed in
+    if (currentUser) {
+      fetchSubscriptionStatus()
+      
+      if (success === 'true') {
+        // Refresh status after successful subscription
+        setTimeout(() => {
+          fetchSubscriptionStatus()
+        }, 2000)
+      }
+    } else {
+      setLoading(false)
     }
-  }, [success])
+  }, [success, currentUser])
 
   const fetchSubscriptionStatus = async () => {
+    if (!currentUser) {
+      setError('You must be signed in to view your subscription status')
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
-      setIsUnauthorized(false)
 
       const response = await fetch('/api/subscriptions/status', {
         credentials: 'include',
@@ -49,20 +59,12 @@ export default function SubscriptionPage() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         const errorMessage = errorData.error || 'Failed to fetch subscription status'
-        
-        // Handle unauthorized errors specially
-        if (response.status === 401) {
-          setIsUnauthorized(true)
-          setError(null) // Don't show error, show sign-in prompt instead
-        } else {
-          setError(errorMessage)
-        }
+        setError(errorMessage)
         return
       }
 
       const data = await response.json()
       setSubscriptionStatus(data)
-      setIsUnauthorized(false)
     } catch (err: any) {
       setError(err.message || 'Failed to load subscription status')
       console.error('Error fetching subscription status:', err)
@@ -72,6 +74,11 @@ export default function SubscriptionPage() {
   }
 
   const handleSubscribe = async () => {
+    if (!currentUser) {
+      setError('You must be signed in to upgrade to Pro')
+      return
+    }
+
     try {
       setProcessing(true)
       setError(null)
@@ -84,15 +91,6 @@ export default function SubscriptionPage() {
       if (!response.ok) {
         const data = await response.json()
         const errorMessage = data.error || 'Failed to create checkout session'
-        
-        // Handle unauthorized errors
-        if (response.status === 401) {
-          setIsUnauthorized(true)
-          setError(null)
-          setProcessing(false)
-          return
-        }
-        
         throw new Error(errorMessage)
       }
 
@@ -106,18 +104,6 @@ export default function SubscriptionPage() {
       }
     } catch (err: any) {
       setError(err.message || 'Failed to start subscription')
-      setProcessing(false)
-    }
-  }
-
-  const handleSignIn = async () => {
-    try {
-      setProcessing(true)
-      // Pass the current pathname so we redirect back here after login
-      await signInWithGoogle('/subscription')
-      // Redirect will happen automatically via OAuth
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign in')
       setProcessing(false)
     }
   }
@@ -166,8 +152,8 @@ export default function SubscriptionPage() {
     )
   }
 
-  // Show sign-in prompt if unauthorized
-  if (isUnauthorized) {
+  // Show message if user is not signed in (edge case)
+  if (!currentUser) {
     return (
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">Subscription</h1>
@@ -177,14 +163,9 @@ export default function SubscriptionPage() {
             <p className="text-gray-600 mb-6">
               Please sign in to view your subscription status and upgrade to Pro.
             </p>
-            <Button
-              variant="primary"
-              onClick={handleSignIn}
-              disabled={processing}
-              className="w-full text-lg py-3"
-            >
-              {processing ? 'Signing in...' : 'Sign In with Google'}
-            </Button>
+            <p className="text-sm text-gray-500">
+              Use the Sign In button in the header to get started.
+            </p>
           </div>
         </Card>
       </div>
