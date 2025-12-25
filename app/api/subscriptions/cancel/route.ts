@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 
+// Ensure this route runs on Node.js runtime (required for Stripe)
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 /**
  * POST /api/subscriptions/cancel
  * Cancel user's subscription at period end

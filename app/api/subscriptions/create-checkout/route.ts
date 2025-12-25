@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 
+// Ensure this route runs on Node.js runtime (required for Stripe)
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 /**
  * POST /api/subscriptions/create-checkout
  * Creates a Stripe Checkout Session for subscription
@@ -10,8 +14,9 @@ export async function POST(request: NextRequest) {
   try {
     // Initialize Stripe client lazily (only when route is called, not during build)
     if (!process.env.STRIPE_SECRET_KEY) {
+      console.error('STRIPE_SECRET_KEY is missing from environment variables')
       return NextResponse.json(
-        { error: 'Stripe secret key is not configured' },
+        { error: 'Stripe secret key is not configured. Please check your environment variables and restart the server.' },
         { status: 500 }
       )
     }
@@ -63,8 +68,9 @@ export async function POST(request: NextRequest) {
     // Get price ID from environment
     const priceId = process.env.STRIPE_PRICE_ID
     if (!priceId) {
+      console.error('STRIPE_PRICE_ID is missing from environment variables')
       return NextResponse.json(
-        { error: 'STRIPE_PRICE_ID is not configured' },
+        { error: 'STRIPE_PRICE_ID is not configured. Please check your environment variables and restart the server.' },
         { status: 500 }
       )
     }

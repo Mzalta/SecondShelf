@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Loading from '@/components/ui/Loading'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
-import { getCurrentUser } from '@/lib/auth/auth'
+import { signInWithGoogle } from '@/lib/auth/auth'
 
 interface SubscriptionStatus {
   subscription: any
@@ -19,6 +19,7 @@ export default function SubscriptionPage() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isUnauthorized, setIsUnauthorized] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const success = searchParams.get('success')
@@ -39,12 +40,7 @@ export default function SubscriptionPage() {
     try {
       setLoading(true)
       setError(null)
-
-      const user = await getCurrentUser()
-      if (!user) {
-        router.push('/auth/callback')
-        return
-      }
+      setIsUnauthorized(false)
 
       const response = await fetch('/api/subscriptions/status', {
         credentials: 'include',
@@ -52,11 +48,21 @@ export default function SubscriptionPage() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to fetch subscription status')
+        const errorMessage = errorData.error || 'Failed to fetch subscription status'
+        
+        // Handle unauthorized errors specially
+        if (response.status === 401) {
+          setIsUnauthorized(true)
+          setError(null) // Don't show error, show sign-in prompt instead
+        } else {
+          setError(errorMessage)
+        }
+        return
       }
 
       const data = await response.json()
       setSubscriptionStatus(data)
+      setIsUnauthorized(false)
     } catch (err: any) {
       setError(err.message || 'Failed to load subscription status')
       console.error('Error fetching subscription status:', err)
@@ -77,7 +83,17 @@ export default function SubscriptionPage() {
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to create checkout session')
+        const errorMessage = data.error || 'Failed to create checkout session'
+        
+        // Handle unauthorized errors
+        if (response.status === 401) {
+          setIsUnauthorized(true)
+          setError(null)
+          setProcessing(false)
+          return
+        }
+        
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
@@ -90,6 +106,17 @@ export default function SubscriptionPage() {
       }
     } catch (err: any) {
       setError(err.message || 'Failed to start subscription')
+      setProcessing(false)
+    }
+  }
+
+  const handleSignIn = async () => {
+    try {
+      setProcessing(true)
+      await signInWithGoogle()
+      // Redirect will happen automatically via OAuth
+    } catch (err: any) {
+      setError(err.message || 'Failed to sign in')
       setProcessing(false)
     }
   }
@@ -134,6 +161,31 @@ export default function SubscriptionPage() {
     return (
       <div className="py-8">
         <Loading />
+      </div>
+    )
+  }
+
+  // Show sign-in prompt if unauthorized
+  if (isUnauthorized) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Subscription</h1>
+        <Card>
+          <div className="text-center py-8">
+            <h2 className="text-2xl font-bold mb-4">Sign In Required</h2>
+            <p className="text-gray-600 mb-6">
+              Please sign in to view your subscription status and upgrade to Pro.
+            </p>
+            <Button
+              variant="primary"
+              onClick={handleSignIn}
+              disabled={processing}
+              className="w-full text-lg py-3"
+            >
+              {processing ? 'Signing in...' : 'Sign In with Google'}
+            </Button>
+          </div>
+        </Card>
       </div>
     )
   }
