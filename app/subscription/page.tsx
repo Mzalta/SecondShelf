@@ -148,10 +148,10 @@ export default function SubscriptionPage() {
       setError(null)
 
       // Get current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        
-        if (sessionError || !session) {
-          setError('You must be signed in to upgrade to Pro')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError || !session) {
+        setError('You must be signed in to upgrade to Pro')
         setProcessing(false)
         return
       }
