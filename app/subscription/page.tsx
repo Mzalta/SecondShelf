@@ -143,14 +143,19 @@ export default function SubscriptionPage() {
   }
 
   const handleSubscribe = async () => {
+    console.log('handleSubscribe called')
     try {
       setProcessing(true)
       setError(null)
 
+      console.log('Getting session...')
       // Get current session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
+      console.log('Session result:', { hasSession: !!session, error: sessionError })
+      
       if (sessionError || !session) {
+        console.error('No session found:', sessionError)
         setError('You must be signed in to upgrade to Pro')
         setProcessing(false)
         return
@@ -159,11 +164,13 @@ export default function SubscriptionPage() {
       const accessToken = session.access_token
 
       if (!accessToken) {
+        console.error('No access token in session')
         setError('No access token found. Please sign in again.')
         setProcessing(false)
         return
       }
 
+      console.log('Creating checkout session...')
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
@@ -175,21 +182,28 @@ export default function SubscriptionPage() {
         headers,
       })
 
+      console.log('Checkout response status:', response.status)
+
       if (!response.ok) {
-        const data = await response.json()
+        const data = await response.json().catch(() => ({}))
         const errorMessage = data.error || 'Failed to create checkout session'
+        console.error('Checkout error:', errorMessage)
         throw new Error(errorMessage)
       }
 
       const data = await response.json()
+      console.log('Checkout data:', data)
       
       // Redirect to Stripe Checkout
       if (data.url) {
+        console.log('Redirecting to:', data.url)
         window.location.href = data.url
       } else {
+        console.error('No URL in response')
         throw new Error('No checkout URL received')
       }
     } catch (err: any) {
+      console.error('handleSubscribe error:', err)
       setError(err.message || 'Failed to start subscription')
       setProcessing(false)
     }
@@ -378,7 +392,11 @@ export default function SubscriptionPage() {
 
             <Button
               variant="primary"
-              onClick={handleSubscribe}
+              onClick={(e) => {
+                e.preventDefault()
+                console.log('Button clicked')
+                handleSubscribe()
+              }}
               disabled={processing}
               className="w-full text-lg py-3"
             >
