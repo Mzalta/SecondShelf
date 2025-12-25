@@ -22,26 +22,27 @@ export async function POST(request: NextRequest) {
     
     // Try to get session first (works better with cookies)
     const {
-      data: { session },
+      data: { session: authSession },
       error: sessionError,
     } = await supabase.auth.getSession()
     
     // If no session, try getUser
-    let user = session?.user
+    let user = authSession?.user
     if (!user) {
       const {
         data: { user: userData },
         error: authError,
       } = await supabase.auth.getUser()
-      user = userData
       
-      if (authError || !user) {
+      if (authError || !userData) {
         console.error('Authentication error:', authError || sessionError)
         return NextResponse.json(
           { error: 'Unauthorized. Please sign in to upgrade your plan.' },
           { status: 401 }
         )
       }
+      
+      user = userData
     }
 
     // Check if user already has an active subscription

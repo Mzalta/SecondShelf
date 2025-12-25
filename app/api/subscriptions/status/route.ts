@@ -22,15 +22,16 @@ export async function GET(request: NextRequest) {
         data: { user: userData },
         error: authError,
       } = await supabase.auth.getUser()
-      user = userData
       
-      if (authError || !user) {
+      if (authError || !userData) {
         console.error('Authentication error:', authError || sessionError)
         return NextResponse.json(
           { error: 'Unauthorized. Please sign in to view your subscription status.' },
           { status: 401 }
         )
       }
+      
+      user = userData
     }
 
     // Get user's subscription
