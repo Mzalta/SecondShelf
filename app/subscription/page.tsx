@@ -7,6 +7,7 @@ import Card from '@/components/ui/Card'
 import Loading from '@/components/ui/Loading'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { useBookStore } from '@/lib/store/useBookStore'
+import { createClient } from '@/lib/supabase/client'
 
 interface SubscriptionStatus {
   subscription: any
@@ -52,8 +53,22 @@ export default function SubscriptionPage() {
       setLoading(true)
       setError(null)
 
+      // Get access token from Supabase session
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`
+      }
+
       const response = await fetch('/api/subscriptions/status', {
         credentials: 'include',
+        headers,
       })
       
       if (!response.ok) {
@@ -83,9 +98,23 @@ export default function SubscriptionPage() {
       setProcessing(true)
       setError(null)
 
+      // Get access token from Supabase session
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`
+      }
+
       const response = await fetch('/api/subscriptions/create-checkout', {
         method: 'POST',
         credentials: 'include',
+        headers,
       })
 
       if (!response.ok) {
