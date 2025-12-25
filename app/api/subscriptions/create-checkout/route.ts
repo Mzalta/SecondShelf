@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Checkout Session
+    // Note: Customer metadata is already set when customer was created above
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
@@ -119,12 +120,6 @@ export async function POST(request: NextRequest) {
       cancel_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?canceled=true`,
       metadata: {
         user_id: user.id, // Store user_id in checkout session metadata
-      },
-      customer_update: {
-        metadata: {
-          user_id: user.id, // Also ensure customer metadata has user_id
-          supabase_user_id: user.id,
-        },
       },
     })
 
