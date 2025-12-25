@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from './Navbar'
 import SearchBar from '@/components/features/search/SearchBar'
@@ -12,10 +12,15 @@ import { ChevronDown } from 'lucide-react'
 
 export default function Header() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
   const { currentUser, setCurrentUser } = useBookStore()
   const [loading, setLoading] = useState(true)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const accountMenuRef = useRef<HTMLDivElement>(null)
+  
+  // Get current search query from URL (only on home page)
+  const currentSearchQuery = pathname === '/' ? (searchParams.get('search') || '') : ''
 
   useEffect(() => {
     // Check for authenticated user on mount
@@ -88,7 +93,13 @@ export default function Header() {
 
   const handleSearch = (query: string) => {
     // Always navigate to home page with search query
-    router.push(`/?search=${encodeURIComponent(query)}`)
+    const trimmedQuery = query.trim()
+    if (trimmedQuery) {
+      router.push(`/?search=${encodeURIComponent(trimmedQuery)}`)
+    } else {
+      // If query is empty, navigate to home without search param
+      router.push('/')
+    }
   }
 
   return (
@@ -109,6 +120,7 @@ export default function Header() {
               <SearchBar 
                 onSearch={handleSearch} 
                 placeholder="Search textbooks by title, author, or course..."
+                initialValue={currentSearchQuery}
               />
             </div>
 

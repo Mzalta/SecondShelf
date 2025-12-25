@@ -10,6 +10,8 @@ import EmptyState from '@/components/ui/EmptyState'
 import Loading from '@/components/ui/Loading'
 import Button from '@/components/ui/Button'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
+import SearchBar from '@/components/features/search/SearchBar'
+import { useSearch } from '@/lib/hooks/useSearch'
 import { Plus } from 'lucide-react'
 import { Book } from '@/types'
 
@@ -33,6 +35,10 @@ export default function MyShelfPage() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  // Filter books based on search query
+  const filteredMyBooks = useSearch(myBooks, searchQuery)
   
   // Check authentication and fetch user's books on mount
   useEffect(() => {
@@ -157,6 +163,18 @@ export default function MyShelfPage() {
         autoDismiss={true}
       />
 
+      {/* Search Bar */}
+      {!loading && myBooks.length > 0 && (
+        <div className="mb-6">
+          <SearchBar
+            onSearch={setSearchQuery}
+            placeholder="Search your listings by title, author, or course..."
+            initialValue={searchQuery}
+            debounceMs={300}
+          />
+        </div>
+      )}
+
       {/* Book Listings Section */}
       {loading && <Loading />}
       
@@ -174,19 +192,29 @@ export default function MyShelfPage() {
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-2xl font-semibold">Active</h3>
               <div className="text-sm text-gray-600">
-                {myBooks.filter(book => !book.sold).length} {myBooks.filter(book => !book.sold).length === 1 ? 'listing' : 'listings'}
+                {searchQuery 
+                  ? `${filteredMyBooks.filter(book => !book.sold).length} of ${myBooks.filter(book => !book.sold).length}`
+                  : `${myBooks.filter(book => !book.sold).length}`
+                } {myBooks.filter(book => !book.sold).length === 1 ? 'listing' : 'listings'}
+                {searchQuery && ` matching "${searchQuery}"`}
               </div>
             </div>
-            {myBooks.filter(book => !book.sold).length === 0 ? (
-              <EmptyState
-                icon="📖"
-                message="You don't have any active listings yet."
-                actionLabel="Add Your First Book"
-                actionHref="/add"
-              />
+            {filteredMyBooks.filter(book => !book.sold).length === 0 ? (
+              searchQuery ? (
+                <div className="bg-gray-50 rounded-lg p-6 text-center">
+                  <p className="text-gray-600">No active listings match your search.</p>
+                </div>
+              ) : (
+                <EmptyState
+                  icon="📖"
+                  message="You don't have any active listings yet."
+                  actionLabel="Add Your First Book"
+                  actionHref="/add"
+                />
+              )
             ) : (
               <BookList
-                books={myBooks.filter(book => !book.sold)}
+                books={filteredMyBooks.filter(book => !book.sold)}
                 favoriteIds={favoriteIds}
                 currentUser={currentUser}
                 isLoading={false}
@@ -203,16 +231,26 @@ export default function MyShelfPage() {
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-2xl font-semibold">Sold</h3>
               <div className="text-sm text-gray-600">
-                {myBooks.filter(book => book.sold).length} {myBooks.filter(book => book.sold).length === 1 ? 'listing' : 'listings'}
+                {searchQuery 
+                  ? `${filteredMyBooks.filter(book => book.sold).length} of ${myBooks.filter(book => book.sold).length}`
+                  : `${myBooks.filter(book => book.sold).length}`
+                } {myBooks.filter(book => book.sold).length === 1 ? 'listing' : 'listings'}
+                {searchQuery && ` matching "${searchQuery}"`}
               </div>
             </div>
-            {myBooks.filter(book => book.sold).length === 0 ? (
-              <div className="bg-gray-50 rounded-lg p-6 text-center">
-                <p className="text-gray-600">No sold listings yet.</p>
-              </div>
+            {filteredMyBooks.filter(book => book.sold).length === 0 ? (
+              searchQuery ? (
+                <div className="bg-gray-50 rounded-lg p-6 text-center">
+                  <p className="text-gray-600">No sold listings match your search.</p>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-6 text-center">
+                  <p className="text-gray-600">No sold listings yet.</p>
+                </div>
+              )
             ) : (
               <BookList
-                books={myBooks.filter(book => book.sold)}
+                books={filteredMyBooks.filter(book => book.sold)}
                 favoriteIds={favoriteIds}
                 currentUser={currentUser}
                 isLoading={false}
@@ -238,4 +276,6 @@ export default function MyShelfPage() {
       )}
     </section>
   )
+}
+
 }

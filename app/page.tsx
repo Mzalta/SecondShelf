@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { useSearch } from '@/lib/hooks/useSearch'
 import BookList from '@/components/features/books/BookList'
@@ -13,6 +14,7 @@ import { Plus } from 'lucide-react'
 import { Book } from '@/types'
 
 export default function HomePage() {
+  const searchParams = useSearchParams()
   const { 
     listings, 
     favoriteIds, 
@@ -27,33 +29,15 @@ export default function HomePage() {
     setCurrentUser,
     clearError
   } = useBookStore()
-  const [searchQuery, setSearchQuery] = useState('')
+  
+  // Get search query from URL params
+  const searchQuery = searchParams.get('search') || ''
+  
   // Filter out sold books from public listings
   const activeListings = listings.filter(book => !book.sold)
   const filteredBooks = useSearch(activeListings, searchQuery)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  
-  // Get search query from URL params and update on navigation
-  useEffect(() => {
-    const updateSearchFromURL = () => {
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search)
-        const searchParam = params.get('search') || ''
-        setSearchQuery(searchParam)
-      }
-    }
-    
-    // Initial load
-    updateSearchFromURL()
-    
-    // Listen for navigation changes
-    window.addEventListener('popstate', updateSearchFromURL)
-    
-    return () => {
-      window.removeEventListener('popstate', updateSearchFromURL)
-    }
-  }, [])
   
   // Fetch books and user on mount
   useEffect(() => {
