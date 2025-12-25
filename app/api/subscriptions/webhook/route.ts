@@ -26,9 +26,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: '2025-11-17.clover',
-  })
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
   // Initialize Supabase admin client for webhook (bypasses RLS)
   const supabaseAdmin = createClient(
