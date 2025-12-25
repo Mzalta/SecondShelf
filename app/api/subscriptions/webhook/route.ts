@@ -108,9 +108,24 @@ async function handleCheckoutCompleted(
     return
   }
 
-  const userId = session.metadata?.user_id
+  // Try to get user_id from session metadata first
+  let userId = session.metadata?.user_id
+  
+  // If not in metadata, try to get it from Stripe customer metadata
+  if (!userId && session.customer) {
+    try {
+      const customer = await stripe.customers.retrieve(session.customer as string)
+      if (customer && !customer.deleted && customer.metadata?.supabase_user_id) {
+        userId = customer.metadata.supabase_user_id
+        console.log(`Retrieved user_id from customer metadata: ${userId}`)
+      }
+    } catch (error) {
+      console.error('Error retrieving customer from Stripe:', error)
+    }
+  }
+
   if (!userId) {
-    console.error('No user_id in checkout session metadata')
+    console.error('No user_id found in checkout session metadata or customer metadata')
     return
   }
 
@@ -128,19 +143,34 @@ async function handleSubscriptionUpdate(
   supabaseAdmin: ReturnType<typeof createClient>,
   stripe: Stripe
 ) {
-  // Find user by customer ID
+  // Try to find user by customer ID in database first
   const { data: existingSub } = await supabaseAdmin
     .from('subscriptions')
     .select('user_id')
     .eq('stripe_customer_id', subscription.customer as string)
     .maybeSingle()
 
-  if (!existingSub) {
-    console.error('Subscription not found in database for customer:', subscription.customer)
+  let userId = existingSub?.user_id
+
+  // If not found in DB, try to get user_id from Stripe customer metadata
+  if (!userId && subscription.customer) {
+    try {
+      const customer = await stripe.customers.retrieve(subscription.customer as string)
+      if (customer && !customer.deleted && customer.metadata?.supabase_user_id) {
+        userId = customer.metadata.supabase_user_id
+        console.log(`Retrieved user_id from customer metadata: ${userId}`)
+      }
+    } catch (error) {
+      console.error('Error retrieving customer from Stripe:', error)
+    }
+  }
+
+  if (!userId) {
+    console.error('Subscription not found in database and no user_id in customer metadata for customer:', subscription.customer)
     return
   }
 
-  await upsertSubscription(subscription, existingSub.user_id, supabaseAdmin)
+  await upsertSubscription(subscription, userId, supabaseAdmin)
   console.log(`Subscription updated: ${subscription.id}`)
 }
 
@@ -178,15 +208,33 @@ async function handleInvoicePaymentSucceeded(
     subscriptionId
   )
 
+  // Try to find user by subscription ID in database first
   const { data: existingSub } = await supabaseAdmin
     .from('subscriptions')
     .select('user_id')
     .eq('stripe_subscription_id', subscription.id)
     .maybeSingle()
 
-  if (existingSub) {
-    await upsertSubscription(subscription, existingSub.user_id, supabaseAdmin)
+  let userId = existingSub?.user_id
+
+  // If not found, try to get user_id from Stripe customer metadata
+  if (!userId && subscription.customer) {
+    try {
+      const customer = await stripe.customers.retrieve(subscription.customer as string)
+      if (customer && !customer.deleted && customer.metadata?.supabase_user_id) {
+        userId = customer.metadata.supabase_user_id
+        console.log(`Retrieved user_id from customer metadata: ${userId}`)
+      }
+    } catch (error) {
+      console.error('Error retrieving customer from Stripe:', error)
+    }
+  }
+
+  if (userId) {
+    await upsertSubscription(subscription, userId, supabaseAdmin)
     console.log(`Invoice payment succeeded for subscription: ${subscription.id}`)
+  } else {
+    console.error('Could not find user_id for subscription:', subscription.id)
   }
 }
 

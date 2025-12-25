@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     // Create or retrieve Stripe customer
     let customerId: string
     
-    // Check if user already has a customer ID
+    // Check if user already has a customer ID in any subscription record
     const { data: existingSub, error: subQueryError } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')
@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
     if (existingSub?.stripe_customer_id) {
       customerId = existingSub.stripe_customer_id
     } else {
-      // Create new Stripe customer
+      // Create new Stripe customer with user_id in metadata
+      // This ensures the webhook can find the user even if customer_id isn't in DB yet
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: {
@@ -98,6 +99,8 @@ export async function POST(request: NextRequest) {
         },
       })
       customerId = customer.id
+      // Note: Customer ID will be saved to DB when subscription is created via webhook
+      // The user_id is stored in Stripe customer metadata as a fallback
     }
 
     // Create Checkout Session
