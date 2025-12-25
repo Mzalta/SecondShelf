@@ -109,11 +109,15 @@ async function handleCheckoutCompleted(
   supabaseAdmin: SupabaseClient<any>
 ) {
   if (session.mode !== 'subscription' || !session.subscription) {
+    console.log('Skipping checkout.session.completed - not a subscription or no subscription ID')
     return
   }
 
+  console.log(`🛒 Processing checkout.session.completed for session: ${session.id}, subscription: ${session.subscription}`)
+
   // Try to get user_id from session metadata first
   let userId = session.metadata?.user_id
+  console.log(`User ID from session metadata: ${userId || 'not found'}`)
   
   // If not in metadata, try to get it from Stripe customer metadata
   if (!userId && session.customer) {
@@ -121,7 +125,7 @@ async function handleCheckoutCompleted(
       const customer = await stripe.customers.retrieve(session.customer as string)
       if (customer && !customer.deleted && customer.metadata?.supabase_user_id) {
         userId = customer.metadata.supabase_user_id
-        console.log(`Retrieved user_id from customer metadata: ${userId}`)
+        console.log(`✅ Retrieved user_id from customer metadata: ${userId}`)
       }
     } catch (error) {
       console.error('Error retrieving customer from Stripe:', error)
@@ -132,15 +136,17 @@ async function handleCheckoutCompleted(
   // This matches task-app's approach and ensures we can always find the user
   if (!userId && session.customer) {
     try {
-      const { data: existingSub } = await supabaseAdmin
+      const { data: existingSub, error: queryError } = await supabaseAdmin
         .from('subscriptions')
         .select('user_id')
         .eq('stripe_customer_id', session.customer as string)
         .maybeSingle()
       
-      if (existingSub?.user_id) {
+      if (queryError) {
+        console.error('Error querying subscriptions table:', queryError)
+      } else if (existingSub?.user_id) {
         userId = existingSub.user_id
-        console.log(`Retrieved user_id from subscriptions table by customer_id: ${userId}`)
+        console.log(`✅ Retrieved user_id from subscriptions table by customer_id: ${userId}`)
       }
     } catch (error) {
       console.error('Error querying subscriptions table:', error)
@@ -148,18 +154,31 @@ async function handleCheckoutCompleted(
   }
 
   if (!userId) {
-    console.error('No user_id found in checkout session metadata, customer metadata, or subscriptions table')
+    console.error('❌ No user_id found in checkout session metadata, customer metadata, or subscriptions table')
     console.error('Session customer:', session.customer)
-    return
+    console.error('Session metadata:', session.metadata)
+    throw new Error(`Cannot process checkout.session.completed: No user_id found for customer ${session.customer}`)
   }
 
   // Get subscription details from Stripe
-  const subscription = await stripe.subscriptions.retrieve(
-    session.subscription as string
-  )
+  let subscription: Stripe.Subscription
+  try {
+    subscription = await stripe.subscriptions.retrieve(
+      session.subscription as string
+    )
+    console.log(`📋 Retrieved subscription from Stripe: ${subscription.id}, status: ${subscription.status}`)
+  } catch (error) {
+    console.error('Error retrieving subscription from Stripe:', error)
+    throw error
+  }
 
-  await upsertSubscription(subscription, userId, supabaseAdmin)
-  console.log(`✅ Checkout completed and subscription updated for user: ${userId}, subscription: ${subscription.id}, status: ${subscription.status}`)
+  try {
+    await upsertSubscription(subscription, userId, supabaseAdmin)
+    console.log(`✅ Checkout completed and subscription updated for user: ${userId}, subscription: ${subscription.id}, status: ${subscription.status}`)
+  } catch (error) {
+    console.error('Error upserting subscription:', error)
+    throw error
+  }
 }
 
 async function handleSubscriptionUpdate(
@@ -308,31 +327,48 @@ async function upsertSubscription(
     user_id: userId,
     stripe_subscription_id: subscription.id,
     stripe_customer_id: subscription.customer as string,
-    status: subscription.status,
+    status: subscription.status, // This will be 'active', 'trialing', etc. from Stripe
     current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
     current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
     cancel_at_period_end: subscription.cancel_at_period_end,
     updated_at: new Date().toISOString(),
   }
 
+  console.log(`🔄 Upserting subscription: ${subscription.id}, status: ${subscription.status}, user: ${userId}`)
+
   // Check if subscription exists for this user (including placeholder records)
-  const { data: existingSub } = await supabaseAdmin
+  const { data: existingSub, error: queryError } = await supabaseAdmin
     .from('subscriptions')
-    .select('id, stripe_subscription_id')
+    .select('id, stripe_subscription_id, status')
     .eq('user_id', userId)
     .maybeSingle()
 
+  if (queryError && queryError.code !== 'PGRST116') {
+    // PGRST116 means no rows found, which is fine
+    console.error('Error querying existing subscription:', queryError)
+    throw queryError
+  }
+
   const isPlaceholder = existingSub?.stripe_subscription_id?.startsWith('pending-')
   const subscriptionIdChanged = existingSub && existingSub.stripe_subscription_id !== subscription.id
+  const statusNeedsUpdate = existingSub && existingSub.status === 'pending' && subscription.status !== 'pending'
+
+  console.log(`Existing subscription found: ${!!existingSub}, isPlaceholder: ${isPlaceholder}, subscriptionIdChanged: ${subscriptionIdChanged}, statusNeedsUpdate: ${statusNeedsUpdate}`)
 
   // If we have a placeholder or the subscription ID changed, we need to handle the unique constraint
   // by deleting the old record first, then inserting/updating
   if (isPlaceholder || subscriptionIdChanged) {
+    console.log(`🔄 Replacing placeholder or changed subscription...`)
+    
     // Delete any existing subscription with the new subscription_id (for safety, in case it exists)
-    await supabaseAdmin
+    const { error: deleteBySubIdError } = await supabaseAdmin
       .from('subscriptions')
       .delete()
       .eq('stripe_subscription_id', subscription.id)
+
+    if (deleteBySubIdError) {
+      console.error('Error deleting subscription by subscription_id:', deleteBySubIdError)
+    }
 
     // If there's an existing subscription for this user (placeholder or old subscription), delete it
     if (existingSub) {
@@ -345,32 +381,36 @@ async function upsertSubscription(
         console.error('Error deleting existing subscription:', deleteError)
         throw deleteError
       }
+      console.log(`✅ Deleted existing subscription record`)
     }
 
     // Now insert the new subscription with the real subscription ID
-    const { error: insertError } = await supabaseAdmin
+    const { error: insertError, data: insertedData } = await supabaseAdmin
       .from('subscriptions')
       .insert(subscriptionData)
+      .select()
 
     if (insertError) {
       console.error('Error inserting subscription after deleting placeholder:', insertError)
       throw insertError
     }
 
-    console.log(`✅ Successfully replaced placeholder subscription with real subscription: ${subscription.id}`)
+    console.log(`✅ Successfully replaced placeholder subscription with real subscription: ${subscription.id}, status: ${subscription.status}`)
   } else if (existingSub) {
     // Subscription exists and ID hasn't changed - just update it
-    const { error: updateError } = await supabaseAdmin
+    // CRITICAL: Always update status, especially if it's currently 'pending'
+    const { error: updateError, data: updatedData } = await supabaseAdmin
       .from('subscriptions')
       .update(subscriptionData)
       .eq('user_id', userId)
+      .select()
 
     if (updateError) {
       console.error('Error updating subscription:', updateError)
       throw updateError
     }
 
-    console.log(`✅ Successfully updated subscription: ${subscription.id}`)
+    console.log(`✅ Successfully updated subscription: ${subscription.id}, status changed from '${existingSub.status}' to '${subscription.status}'`)
   } else {
     // No existing subscription - insert new one
     // First, delete any subscription with this subscription_id if it exists (shouldn't happen, but safety check)
@@ -379,16 +419,17 @@ async function upsertSubscription(
       .delete()
       .eq('stripe_subscription_id', subscription.id)
 
-    const { error: insertError } = await supabaseAdmin
+    const { error: insertError, data: insertedData } = await supabaseAdmin
       .from('subscriptions')
       .insert(subscriptionData)
+      .select()
 
     if (insertError) {
       console.error('Error inserting subscription:', insertError)
       throw insertError
     }
 
-    console.log(`✅ Successfully inserted new subscription: ${subscription.id}`)
+    console.log(`✅ Successfully inserted new subscription: ${subscription.id}, status: ${subscription.status}`)
   }
 }
 
