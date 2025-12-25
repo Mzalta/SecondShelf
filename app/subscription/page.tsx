@@ -77,6 +77,7 @@ export default function SubscriptionPage() {
         timeoutId = setTimeout(() => {
           setAuthHydrated(true)
           setLoading(false)
+          setPollingComplete(true)
         }, 1000)
       }
     })
@@ -91,7 +92,8 @@ export default function SubscriptionPage() {
 
   // Handle success parameter with polling to wait for webhook
   useEffect(() => {
-    if (success === 'true' && user) {
+    // Only start polling if auth is hydrated, user exists, and success param is present
+    if (success === 'true' && user && authHydrated) {
       let pollCount = 0
       const maxPolls = 30 // Poll for up to 30 times (30 seconds) - webhooks can take time
       const pollInterval = 1000 // Poll every 1 second
@@ -109,6 +111,7 @@ export default function SubscriptionPage() {
         }
         
         try {
+          // Don't set loading to true here - it should already be set by the initial fetch
           const accessToken = session.access_token
           if (!accessToken) {
             setLoading(false)
@@ -160,19 +163,25 @@ export default function SubscriptionPage() {
         }
       }
       
-      // Start polling immediately
-      pollSubscriptionStatus()
+      // Wait a moment for initial auth check to complete, then start polling
+      const startPollingTimeout = setTimeout(() => {
+        pollSubscriptionStatus()
+      }, 500)
       
       // Cleanup function to stop polling if component unmounts
       return () => {
         pollingActive = false
         if (timeoutId) clearTimeout(timeoutId)
+        if (startPollingTimeout) clearTimeout(startPollingTimeout)
       }
+    } else if (success === 'true') {
+      // Success param is present but user/auth not ready yet - mark as not complete yet
+      // This will be handled when auth hydrates
     } else {
       // If not in success state, mark polling as complete
       setPollingComplete(true)
     }
-  }, [success, user])
+  }, [success, user, authHydrated])
 
   const fetchSubscriptionStatus = async (session: Session) => {
     try {
@@ -339,10 +348,11 @@ export default function SubscriptionPage() {
     })
   }
 
-  // Show loading while auth is hydrating
-  if (!authHydrated || loading) {
+  // Show loading while auth is hydrating or initial load
+  if (!authHydrated || (loading && !subscriptionStatus)) {
     return (
-      <div className="py-8">
+      <div className="max-w-2xl mx-auto py-8">
+        <h1 className="text-3xl font-bold mb-6">Manage Subscription</h1>
         <Loading />
       </div>
     )
