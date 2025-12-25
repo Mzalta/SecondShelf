@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     // Try to get access token from Authorization header first (more reliable)
     const authHeader = request.headers.get('Authorization')
     let user = null
+    let supabase = null
     
     if (authHeader?.startsWith('Bearer ')) {
       const accessToken = authHeader.split(' ')[1]
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       
       if (supabaseUrl && supabaseAnonKey) {
-        const supabaseWithToken = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+        supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
           global: {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
           },
         })
         
-        const { data: { user: userData }, error: tokenError } = await supabaseWithToken.auth.getUser()
+        const { data: { user: userData }, error: tokenError } = await supabase.auth.getUser()
         if (!tokenError && userData) {
           user = userData
         }
@@ -55,8 +56,8 @@ export async function POST(request: NextRequest) {
     }
     
     // Fallback to cookie-based authentication
-    if (!user) {
-      const supabase = createClient()
+    if (!user || !supabase) {
+      supabase = createClient()
       
       // Try to get session first (works better with cookies)
       const {
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    if (!user) {
+    if (!user || !supabase) {
       return NextResponse.json(
         { error: 'Unauthorized. Please sign in to upgrade your plan.' },
         { status: 401 }
