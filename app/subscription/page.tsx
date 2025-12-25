@@ -24,7 +24,6 @@ export default function SubscriptionPage() {
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [authHydrated, setAuthHydrated] = useState(false)
-  const [pollingComplete, setPollingComplete] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const success = searchParams.get('success')
@@ -77,7 +76,6 @@ export default function SubscriptionPage() {
         timeoutId = setTimeout(() => {
           setAuthHydrated(true)
           setLoading(false)
-          setPollingComplete(true)
         }, 1000)
       }
     })
@@ -90,96 +88,15 @@ export default function SubscriptionPage() {
     }
   }, [])
 
-  // Handle success parameter with polling to wait for webhook
+  // Handle success parameter - fetch status once (status API will sync from Stripe if needed)
   useEffect(() => {
-    // Only start polling if auth is hydrated, user exists, and success param is present
     if (success === 'true' && user && authHydrated) {
-      let pollCount = 0
-      const maxPolls = 30 // Poll for up to 30 times (30 seconds) - webhooks can take time
-      const pollInterval = 1000 // Poll every 1 second
-      let pollingActive = true
-      let timeoutId: NodeJS.Timeout | null = null
-      
-      const pollSubscriptionStatus = async () => {
-        if (!pollingActive) return
-        
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-          setLoading(false)
-          setPollingComplete(true)
-          return
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          // Status API will aggressively sync from Stripe, so just fetch once
+          fetchSubscriptionStatus(session)
         }
-        
-        try {
-          // Don't set loading to true here - it should already be set by the initial fetch
-          const accessToken = session.access_token
-          if (!accessToken) {
-            setLoading(false)
-            setPollingComplete(true)
-            return
-          }
-
-          const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          }
-
-          const response = await fetch('/api/subscriptions/status', {
-            credentials: 'include',
-            headers,
-          })
-          
-          if (response.ok) {
-            const data = await response.json()
-            console.log('Polling subscription status:', { pollCount, isPro: data.isPro, status: data.subscription?.status })
-            setSubscriptionStatus(data)
-            
-            // If subscription is now active, stop polling
-            if (data.isPro) {
-              setLoading(false)
-              setPollingComplete(true)
-              pollingActive = false
-              if (timeoutId) clearTimeout(timeoutId)
-              return
-            }
-          }
-        } catch (err) {
-          console.error('Error polling subscription status:', err)
-        }
-        
-        pollCount++
-        if (pollCount < maxPolls && pollingActive) {
-          timeoutId = setTimeout(pollSubscriptionStatus, pollInterval)
-        } else {
-          // Polling complete but subscription not active yet
-          setLoading(false)
-          setPollingComplete(true)
-          pollingActive = false
-          // Final fetch attempt
-          const { data: { session: finalSession } } = await supabase.auth.getSession()
-          if (finalSession) {
-            fetchSubscriptionStatus(finalSession)
-          }
-        }
-      }
-      
-      // Wait a moment for initial auth check to complete, then start polling
-      const startPollingTimeout = setTimeout(() => {
-        pollSubscriptionStatus()
-      }, 500)
-      
-      // Cleanup function to stop polling if component unmounts
-      return () => {
-        pollingActive = false
-        if (timeoutId) clearTimeout(timeoutId)
-        if (startPollingTimeout) clearTimeout(startPollingTimeout)
-      }
-    } else if (success === 'true') {
-      // Success param is present but user/auth not ready yet - mark as not complete yet
-      // This will be handled when auth hydrates
-    } else {
-      // If not in success state, mark polling as complete
-      setPollingComplete(true)
+      })
     }
   }, [success, user, authHydrated])
 
@@ -402,32 +319,6 @@ export default function SubscriptionPage() {
         />
       )}
 
-      {success === 'true' && !subscriptionStatus?.isPro && !pollingComplete && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-6">
-          <div className="flex items-center gap-2">
-            <span className="animate-spin">⏳</span>
-            <span>Processing your subscription... This may take a few moments.</span>
-          </div>
-        </div>
-      )}
-      
-      {success === 'true' && !subscriptionStatus?.isPro && pollingComplete && (
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span>⚠️</span>
-              <span>Subscription is being processed. If it doesn&apos;t appear soon, please refresh the page or contact support.</span>
-            </div>
-            <button
-              onClick={handleRefresh}
-              className="px-3 py-1 text-sm bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
-            >
-              Refresh Now
-            </button>
-          </div>
-        </div>
-      )}
-      
       {success === 'true' && subscriptionStatus?.isPro && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-6">
           ✅ Subscription activated successfully! Welcome to Pro!
