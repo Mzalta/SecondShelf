@@ -24,6 +24,7 @@ export default function SubscriptionPage() {
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [authHydrated, setAuthHydrated] = useState(false)
+  const [pollingComplete, setPollingComplete] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const success = searchParams.get('success')
@@ -92,9 +93,10 @@ export default function SubscriptionPage() {
   useEffect(() => {
     if (success === 'true' && user) {
       let pollCount = 0
-      const maxPolls = 10 // Poll for up to 10 times (10 seconds)
+      const maxPolls = 30 // Poll for up to 30 times (30 seconds) - webhooks can take time
       const pollInterval = 1000 // Poll every 1 second
       let pollingActive = true
+      let timeoutId: NodeJS.Timeout | null = null
       
       const pollSubscriptionStatus = async () => {
         if (!pollingActive) return
@@ -102,14 +104,15 @@ export default function SubscriptionPage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
           setLoading(false)
+          setPollingComplete(true)
           return
         }
         
         try {
-          setLoading(true)
           const accessToken = session.access_token
           if (!accessToken) {
             setLoading(false)
+            setPollingComplete(true)
             return
           }
 
@@ -125,12 +128,15 @@ export default function SubscriptionPage() {
           
           if (response.ok) {
             const data = await response.json()
+            console.log('Polling subscription status:', { pollCount, isPro: data.isPro, status: data.subscription?.status })
             setSubscriptionStatus(data)
             
             // If subscription is now active, stop polling
             if (data.isPro) {
               setLoading(false)
+              setPollingComplete(true)
               pollingActive = false
+              if (timeoutId) clearTimeout(timeoutId)
               return
             }
           }
@@ -140,9 +146,12 @@ export default function SubscriptionPage() {
         
         pollCount++
         if (pollCount < maxPolls && pollingActive) {
-          setTimeout(pollSubscriptionStatus, pollInterval)
+          timeoutId = setTimeout(pollSubscriptionStatus, pollInterval)
         } else {
+          // Polling complete but subscription not active yet
           setLoading(false)
+          setPollingComplete(true)
+          pollingActive = false
           // Final fetch attempt
           const { data: { session: finalSession } } = await supabase.auth.getSession()
           if (finalSession) {
@@ -157,7 +166,11 @@ export default function SubscriptionPage() {
       // Cleanup function to stop polling if component unmounts
       return () => {
         pollingActive = false
+        if (timeoutId) clearTimeout(timeoutId)
       }
+    } else {
+      // If not in success state, mark polling as complete
+      setPollingComplete(true)
     }
   }, [success, user])
 
@@ -194,6 +207,12 @@ export default function SubscriptionPage() {
       }
 
       const data = await response.json()
+      console.log('Subscription status fetched:', { 
+        isPro: data.isPro, 
+        isActive: data.isActive,
+        status: data.subscription?.status,
+        hasSubscription: !!data.subscription 
+      })
       setSubscriptionStatus(data)
     } catch (err: any) {
       setError(err.message || 'Failed to load subscription status')
@@ -373,11 +392,28 @@ export default function SubscriptionPage() {
         />
       )}
 
-      {success === 'true' && !subscriptionStatus?.isPro && (
+      {success === 'true' && !subscriptionStatus?.isPro && !pollingComplete && (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-6">
           <div className="flex items-center gap-2">
             <span className="animate-spin">⏳</span>
             <span>Processing your subscription... This may take a few moments.</span>
+          </div>
+        </div>
+      )}
+      
+      {success === 'true' && !subscriptionStatus?.isPro && pollingComplete && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span>⚠️</span>
+              <span>Subscription is being processed. If it doesn't appear soon, please refresh the page or contact support.</span>
+            </div>
+            <button
+              onClick={handleRefresh}
+              className="px-3 py-1 text-sm bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
+            >
+              Refresh Now
+            </button>
           </div>
         </div>
       )}
