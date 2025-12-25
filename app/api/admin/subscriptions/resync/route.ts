@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     let startingAfter: string | undefined = undefined
 
     while (hasMore) {
-      const response = await stripe.subscriptions.list({
+      const response: Stripe.Response<Stripe.ApiList<Stripe.Subscription>> = await stripe.subscriptions.list({
         limit: 100,
         starting_after: startingAfter,
         status: 'all',
