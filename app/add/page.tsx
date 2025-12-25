@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,11 +8,12 @@ import { z } from 'zod'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
 import { categorizeBook } from '@/lib/api/categorize'
+import { uploadBookImage } from '@/lib/utils/imageUpload'
 import FormInput from '@/components/features/forms/FormInput'
 import Button from '@/components/ui/Button'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { BookFormData } from '@/types'
-import { Sparkles } from 'lucide-react'
+import { Upload, X } from 'lucide-react'
 
 const bookSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -26,11 +27,15 @@ const bookSchema = z.object({
 
 export default function AddBookPage() {
   const router = useRouter()
-  const { addListing, loading, error, setCurrentUser, fetchBooks, clearError } = useBookStore()
+  const { addListing, loading, error, setCurrentUser, fetchBooks, clearError, currentUser } = useBookStore()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [isCategorizing, setIsCategorizing] = useState(false)
   const [categorizeError, setCategorizeError] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const {
     register,
@@ -43,11 +48,10 @@ export default function AddBookPage() {
     resolver: zodResolver(bookSchema)
   })
   
-  // Watch title, author, and course for auto-categorization
+  // Watch title, author, and course for categorization
   const title = watch('title')
   const author = watch('author')
   const course = watch('course')
-  const category = watch('category')
   const price = watch('price')
   
   // Check authentication on mount
@@ -63,44 +67,39 @@ export default function AddBookPage() {
     await signInWithGoogle()
   }
   
-  const handleCategorize = async () => {
-    if (!title || !author || !course) {
-      setCategorizeError('Please fill in title, author, and course first')
-      return
-    }
-    
-    setIsCategorizing(true)
-    setCategorizeError(null)
-    
-    try {
-      const suggestedCategory = await categorizeBook({
-        title: title.trim(),
-        author: author.trim(),
-        course: course.trim(),
-      })
-      setValue('category', suggestedCategory)
-    } catch (error: any) {
-      setCategorizeError(error.message || 'Failed to categorize book')
-      console.error('Error categorizing:', error)
-    } finally {
-      setIsCategorizing(false)
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file')
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB')
+        return
+      }
+      
+      setSelectedImage(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
     }
   }
   
-  // Auto-categorize when all three fields are filled (debounced)
-  useEffect(() => {
-    if (!title || !author || !course) return
-    
-    const timer = setTimeout(() => {
-      // Only auto-categorize if category is empty
-      if (!category) {
-        handleCategorize()
-      }
-    }, 1500) // Wait 1.5 seconds after user stops typing
-    
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, author, course])
+  const handleRemoveImage = () => {
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
   
   // Format price with dollar sign
   const formatPrice = (value: string): string => {
@@ -180,16 +179,66 @@ export default function AddBookPage() {
 
   const onSubmit = async (data: BookFormData) => {
     try {
-      // Ensure price is formatted before submission
-      const formattedData = {
-        ...data,
-        price: formatPrice(data.price)
+      setIsCategorizing(true)
+      setCategorizeError(null)
+      
+      // Get current user for image upload (use store user or fetch it)
+      const user = currentUser || await getCurrentUser()
+      if (!user) {
+        throw new Error('You must be signed in to add a listing')
       }
+      
+      let imageUrl: string | undefined = undefined
+      
+      // Upload image if one is selected
+      if (selectedImage) {
+        setUploadingImage(true)
+        try {
+          imageUrl = await uploadBookImage(selectedImage, user.id)
+        } catch (error: any) {
+          setUploadingImage(false)
+          setIsCategorizing(false)
+          alert(`Failed to upload image: ${error.message}`)
+          return
+        }
+        setUploadingImage(false)
+      }
+      
+      // Categorize the book
+      let category: string | undefined = undefined
+      if (title && author && course) {
+        try {
+          category = await categorizeBook({
+            title: title.trim(),
+            author: author.trim(),
+            course: course.trim(),
+          })
+        } catch (error: any) {
+          // Don't block submission if categorization fails
+          console.error('Error categorizing book:', error)
+          setCategorizeError(error.message || 'Failed to categorize book')
+        }
+      }
+      
+      setIsCategorizing(false)
+      
+      // Ensure price is formatted before submission
+      const formattedData: BookFormData = {
+        ...data,
+        price: formatPrice(data.price),
+        category,
+        imageUrl
+      }
+      
       await addListing(formattedData)
       await fetchBooks() // Refresh the list
       reset()
+      setSelectedImage(null)
+      setImagePreview(null)
       router.push('/')
     } catch (error) {
+      setIsCategorizing(false)
+      setUploadingImage(false)
       // Error is already handled in the store
       console.error('Error adding book:', error)
     }
@@ -256,38 +305,52 @@ export default function AddBookPage() {
           {...register('course')}
         />
         
-        {/* Category Field with Auto-Categorization */}
+        {/* Image Upload Field */}
         <div className="mb-4">
-          <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
-            Category <span className="text-gray-500 text-xs">(Auto-filled)</span>
+          <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-1">
+            Book Image <span className="text-gray-500 text-xs">(Optional)</span>
           </label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              id="category"
-              {...register('category')}
-              placeholder="Category will be auto-suggested..."
-              readOnly
-              className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleCategorize}
-              disabled={isCategorizing || !title || !author || !course}
-              className="flex items-center gap-2"
-            >
-              <Sparkles size={16} />
-              {isCategorizing ? 'Categorizing...' : 'Categorize'}
-            </Button>
-          </div>
-          {categorizeError && (
-            <p className="mt-1 text-sm text-red-600">{categorizeError}</p>
-          )}
-          {category && (
-            <p className="mt-1 text-sm text-green-600">
-              ✓ Category: {category}
-            </p>
+          {!imagePreview ? (
+            <div className="mt-1">
+              <label
+                htmlFor="image"
+                className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                  <p className="mb-2 text-sm text-gray-500">
+                    <span className="font-semibold">Click to upload</span> or drag and drop
+                  </p>
+                  <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
+                </div>
+                <input
+                  id="image"
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={handleImageSelect}
+                />
+              </label>
+            </div>
+          ) : (
+            <div className="mt-1 relative">
+              <div className="relative w-full h-48 rounded-lg overflow-hidden border-2 border-gray-300">
+                <img
+                  src={imagePreview}
+                  alt="Book preview"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                  aria-label="Remove image"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
           )}
         </div>
         
@@ -329,20 +392,35 @@ export default function AddBookPage() {
           {...register('poster')}
         />
         
+        {categorizeError && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              Note: Could not automatically categorize this book. You can still add the listing.
+            </p>
+          </div>
+        )}
+        
         <div className="flex gap-4 mt-6">
           <Button
             type="submit"
             variant="primary"
-            loading={isSubmitting || loading}
-            disabled={isSubmitting || loading}
+            loading={isSubmitting || loading || isCategorizing || uploadingImage}
+            disabled={isSubmitting || loading || isCategorizing || uploadingImage}
           >
-            Add Listing
+            {isCategorizing ? 'Categorizing...' : uploadingImage ? 'Uploading image...' : 'Add Listing'}
           </Button>
           <Button
             type="button"
             variant="secondary"
-            onClick={() => reset()}
-            disabled={isSubmitting || loading}
+            onClick={() => {
+              reset()
+              setSelectedImage(null)
+              setImagePreview(null)
+              if (fileInputRef.current) {
+                fileInputRef.current.value = ''
+              }
+            }}
+            disabled={isSubmitting || loading || isCategorizing || uploadingImage}
           >
             Clear Form
           </Button>

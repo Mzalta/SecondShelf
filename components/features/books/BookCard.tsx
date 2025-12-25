@@ -31,9 +31,17 @@ export default function BookCard({
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 group">
-      {/* Image Placeholder */}
-      <div className="w-full h-64 bg-gradient-to-br from-teal-50 to-purple-50 flex items-center justify-center relative">
-        <div className="text-6xl opacity-30">📚</div>
+      {/* Image */}
+      <div className="w-full h-64 bg-gradient-to-br from-teal-50 to-purple-50 flex items-center justify-center relative overflow-hidden">
+        {book.imageUrl ? (
+          <img
+            src={book.imageUrl}
+            alt={book.title}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="text-6xl opacity-30">📚</div>
+        )}
         {book.sold && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <span className="bg-red-600 text-white px-4 py-2 rounded font-bold text-lg">SOLD</span>
