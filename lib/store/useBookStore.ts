@@ -166,14 +166,19 @@ export const useBookStore = create<BookStore>((set, get) => ({
     }
   },
   
-  // Mark a book as sold (removes it from listings)
+  // Mark a book as sold (updates the sold property)
+  // Removes from public listings but keeps in myBooks for the Sold section
   markAsSold: async (id: string) => {
     set({ loading: true, error: null })
     try {
-      await booksApi.markAsSold(id)
+      const updatedBook = await booksApi.markAsSold(id)
       set((state) => ({
+        // Remove from public listings (sold books shouldn't appear publicly)
         listings: state.listings.filter((book) => book.id !== id),
-        myBooks: state.myBooks.filter((book) => book.id !== id),
+        // Update in myBooks to show in Sold section
+        myBooks: state.myBooks.map((book) => 
+          book.id === id ? updatedBook : book
+        ),
         favoriteIds: new Set(
           Array.from(state.favoriteIds).filter((favId) => favId !== id)
         )

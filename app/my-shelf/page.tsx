@@ -154,20 +154,61 @@ export default function MyShelfPage() {
           actionHref="/add"
         />
       ) : (
-        <div>
-          <div className="mb-4 text-sm text-gray-600">
-            {myBooks.length} {myBooks.length === 1 ? 'listing' : 'listings'}
+        <div className="space-y-8">
+          {/* Active Section */}
+          <div>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-2xl font-semibold">Active</h3>
+              <div className="text-sm text-gray-600">
+                {myBooks.filter(book => !book.sold).length} {myBooks.filter(book => !book.sold).length === 1 ? 'listing' : 'listings'}
+              </div>
+            </div>
+            {myBooks.filter(book => !book.sold).length === 0 ? (
+              <EmptyState
+                icon="📖"
+                message="You don't have any active listings yet."
+                actionLabel="Add Your First Book"
+                actionHref="/add"
+              />
+            ) : (
+              <BookList
+                books={myBooks.filter(book => !book.sold)}
+                favoriteIds={favoriteIds}
+                currentUser={currentUser}
+                isLoading={false}
+                onToggleFavorite={toggleFavorite}
+                onMarkAsSold={handleMarkAsSold}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+              />
+            )}
           </div>
-          <BookList
-            books={myBooks}
-            favoriteIds={favoriteIds}
-            currentUser={currentUser}
-            isLoading={false}
-            onToggleFavorite={toggleFavorite}
-            onMarkAsSold={handleMarkAsSold}
-            onDelete={handleDelete}
-            onEdit={handleEdit}
-          />
+
+          {/* Sold Section */}
+          <div>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-2xl font-semibold">Sold</h3>
+              <div className="text-sm text-gray-600">
+                {myBooks.filter(book => book.sold).length} {myBooks.filter(book => book.sold).length === 1 ? 'listing' : 'listings'}
+              </div>
+            </div>
+            {myBooks.filter(book => book.sold).length === 0 ? (
+              <div className="bg-gray-50 rounded-lg p-6 text-center">
+                <p className="text-gray-600">No sold listings yet.</p>
+              </div>
+            ) : (
+              <BookList
+                books={myBooks.filter(book => book.sold)}
+                favoriteIds={favoriteIds}
+                currentUser={currentUser}
+                isLoading={false}
+                onToggleFavorite={toggleFavorite}
+                onMarkAsSold={undefined}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+              />
+            )}
+          </div>
         </div>
       )}
       

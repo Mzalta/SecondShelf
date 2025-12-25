@@ -28,7 +28,9 @@ export default function HomePage() {
     clearError
   } = useBookStore()
   const [searchQuery, setSearchQuery] = useState('')
-  const filteredBooks = useSearch(listings, searchQuery)
+  // Filter out sold books from public listings
+  const activeListings = listings.filter(book => !book.sold)
+  const filteredBooks = useSearch(activeListings, searchQuery)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   
@@ -117,7 +119,7 @@ export default function HomePage() {
       {/* Results Count & Filters */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
         <div className="flex items-center justify-between">
-          <ResultsCount count={filteredBooks.length} total={listings.length} />
+          <ResultsCount count={filteredBooks.length} total={activeListings.length} />
         </div>
       </div>
 
