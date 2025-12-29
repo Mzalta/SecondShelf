@@ -113,37 +113,39 @@ export default function ConversationPage() {
 
     loadData()
 
-    // Set up Realtime subscription
-    const supabase = createBrowserClient()
-    const channel = supabase
-      .channel(`conversation:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        async (payload: RealtimePostgresChangesPayload<Message>) => {
-          const newMessage = payload.new as Message
-          setMessages((prev) => [...prev, newMessage])
-          
-          // Mark as read if message is not from current user
-          if (newMessage.sender_id !== currentUser?.id) {
-            await fetch(`/api/messages/${conversationId}/read`, {
-              method: 'PATCH',
-              credentials: 'include',
-            })
+    // Set up Realtime subscription only if user is Pro
+    if (!proLoading && isPro && conversationId) {
+      const supabase = createBrowserClient()
+      const channel = supabase
+        .channel(`conversation:${conversationId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          async (payload: RealtimePostgresChangesPayload<Message>) => {
+            const newMessage = payload.new as Message
+            setMessages((prev) => [...prev, newMessage])
+            
+            // Mark as read if message is not from current user
+            if (newMessage.sender_id !== currentUser?.id) {
+              await fetch(`/api/messages/${conversationId}/read`, {
+                method: 'PATCH',
+                credentials: 'include',
+              })
+            }
           }
-        }
-      )
-      .subscribe()
+        )
+        .subscribe()
 
-    channelRef.current = channel
+      channelRef.current = channel
 
-    return () => {
-      channel.unsubscribe()
+      return () => {
+        channel.unsubscribe()
+      }
     }
   }, [conversationId, router, currentUser?.id, isPro, proLoading])
 
