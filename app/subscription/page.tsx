@@ -471,19 +471,7 @@ export default function SubscriptionPage() {
             <div className="space-y-3 mb-8">
               <div className="flex items-start">
                 <span className="text-green-500 mr-2">✓</span>
-                <span>Unlimited book listings</span>
-              </div>
-              <div className="flex items-start">
-                <span className="text-green-500 mr-2">✓</span>
-                <span>Priority support</span>
-              </div>
-              <div className="flex items-start">
-                <span className="text-green-500 mr-2">✓</span>
-                <span>Advanced search filters</span>
-              </div>
-              <div className="flex items-start">
-                <span className="text-green-500 mr-2">✓</span>
-                <span>No ads</span>
+                <span>Messaging</span>
               </div>
             </div>
 
