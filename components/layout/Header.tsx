@@ -18,9 +18,28 @@ export default function Header() {
   const [loading, setLoading] = useState(true)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const accountMenuRef = useRef<HTMLDivElement>(null)
+  const [isPro, setIsPro] = useState(false)
   
   // Get current search query from URL (only on home page)
   const currentSearchQuery = pathname === '/' ? (searchParams.get('search') || '') : ''
+  
+  // Fetch user profile to check Pro status
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (currentUser) {
+        const supabase = createBrowserClient()
+        const { data } = await supabase
+          .from('profiles')
+          .select('is_pro')
+          .eq('id', currentUser.id)
+          .single()
+        setIsPro(data?.is_pro ?? false)
+      } else {
+        setIsPro(false)
+      }
+    }
+    fetchProfile()
+  }, [currentUser])
 
   useEffect(() => {
     // Check for authenticated user on mount
@@ -121,6 +140,8 @@ export default function Header() {
                 onSearch={handleSearch} 
                 placeholder="Search textbooks by title, author, or course..."
                 initialValue={currentSearchQuery}
+                isPro={isPro}
+                showProTeaser={!isPro && pathname === '/'}
               />
             </div>
 
