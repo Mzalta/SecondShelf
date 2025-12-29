@@ -480,7 +480,7 @@ export default function SubscriptionPage() {
                 <div>
                   <span className="font-medium">AI Advanced Search</span>
                   <p className="text-sm text-gray-600 mt-1">
-                    Natural language search that understands what you're looking for to find the perfect textbooks
+                    Natural language search that understands what you&apos;re looking for to find the perfect textbooks
                   </p>
                 </div>
               </div>
