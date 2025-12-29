@@ -182,7 +182,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-4">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
             <p className="text-sm text-yellow-800">
-              You've reached your daily limit of 75 AI searches. Showing keyword results. Your limit resets in 24 hours.
+              You&apos;ve reached your daily limit of 75 AI searches. Showing keyword results. Your limit resets in 24 hours.
             </p>
           </div>
         </div>

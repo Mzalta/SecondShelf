@@ -131,7 +131,7 @@ export default function SearchBar({
             Upgrade to Pro for AI-powered natural language search
           </Link>
           <span className="text-gray-500 ml-1">
-            (e.g., "calculus book under $50 good condition with solutions")
+            (e.g., &quot;calculus book under $50 good condition with solutions&quot;)
           </span>
         </div>
       )}
