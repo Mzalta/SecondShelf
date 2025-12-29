@@ -78,7 +78,8 @@ export async function POST(request: NextRequest) {
         console.log(`Unhandled event type: ${event.type}`)
     }
 
-    return NextResponse.json({ received: true })
+    // Explicitly return 200 OK to confirm webhook processing
+    return NextResponse.json({ received: true }, { status: 200 })
   } catch (error: any) {
     console.error('Error processing webhook:', error)
     return NextResponse.json(
