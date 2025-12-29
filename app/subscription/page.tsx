@@ -484,6 +484,15 @@ export default function SubscriptionPage() {
                   </p>
                 </div>
               </div>
+              <div className="flex items-start">
+                <span className="text-green-500 mr-2">✓</span>
+                <div>
+                  <span className="font-medium">AI-Enhanced Book Listings</span>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Smart summaries and insights that help you discover the perfect match faster
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div>
