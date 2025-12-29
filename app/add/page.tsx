@@ -9,10 +9,11 @@ import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
 import { categorizeBook } from '@/lib/api/categorize'
 import { uploadBookImage } from '@/lib/utils/imageUpload'
+import { enhanceListing } from '@/app/actions/enhanceListing'
+import { useProStatus } from '@/lib/hooks/useProStatus'
 import FormInput from '@/components/features/forms/FormInput'
 import Button from '@/components/ui/Button'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
-import AIEnhancer from '@/components/features/books/AIEnhancer'
 import { BookFormData } from '@/types'
 import { Upload, X } from 'lucide-react'
 
@@ -34,10 +35,13 @@ const bookSchema = z.object({
 export default function AddBookPage() {
   const router = useRouter()
   const { addListing, loading, error, setCurrentUser, fetchBooks, clearError, currentUser } = useBookStore()
+  const { isPro } = useProStatus()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [isCategorizing, setIsCategorizing] = useState(false)
   const [categorizeError, setCategorizeError] = useState<string | null>(null)
+  const [isEnhancing, setIsEnhancing] = useState(false)
+  const [enhanceError, setEnhanceError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -191,6 +195,7 @@ export default function AddBookPage() {
     try {
       setIsCategorizing(true)
       setCategorizeError(null)
+      setEnhanceError(null)
       
       // Get current user for image upload (use store user or fetch it)
       const user = currentUser || await getCurrentUser()
@@ -232,10 +237,47 @@ export default function AddBookPage() {
       
       setIsCategorizing(false)
       
+      // Auto-enhance listing with AI if user is Pro and has condition text
+      let enhancedData = { ...data }
+      if (isPro && data.condition_text && data.condition_text.trim()) {
+        setIsEnhancing(true)
+        try {
+          const enhancementResult = await enhanceListing({
+            isbn: data.isbn?.trim() || undefined,
+            edition: data.edition?.trim() || undefined,
+            condition_text: data.condition_text.trim(),
+            current_title: data.title?.trim() || undefined,
+            current_description: data.description?.trim() || undefined,
+          })
+          
+          if (enhancementResult.success && enhancementResult.data) {
+            // Apply AI enhancements automatically
+            enhancedData = {
+              ...enhancedData,
+              title: enhancementResult.data.optimized_title,
+              description: enhancementResult.data.optimized_description,
+              tags: enhancementResult.data.keywords,
+              // Optionally update price to suggested average
+              price: data.price || `$${((enhancementResult.data.price_min_usd + enhancementResult.data.price_max_usd) / 2).toFixed(2)}`,
+            }
+          } else {
+            // Don't block submission if enhancement fails
+            console.error('AI enhancement failed:', enhancementResult.error)
+            setEnhanceError(enhancementResult.error || 'AI enhancement unavailable')
+          }
+        } catch (error: any) {
+          // Don't block submission if enhancement fails
+          console.error('Error enhancing listing:', error)
+          setEnhanceError(error.message || 'Failed to enhance listing')
+        } finally {
+          setIsEnhancing(false)
+        }
+      }
+      
       // Ensure price is formatted before submission
       const formattedData: BookFormData = {
-        ...data,
-        price: formatPrice(data.price),
+        ...enhancedData,
+        price: formatPrice(enhancedData.price),
         category,
         imageUrl
       }
@@ -248,6 +290,7 @@ export default function AddBookPage() {
       router.push('/')
     } catch (error) {
       setIsCategorizing(false)
+      setIsEnhancing(false)
       setUploadingImage(false)
       // Error is already handled in the store
       console.error('Error adding book:', error)
@@ -350,25 +393,31 @@ export default function AddBookPage() {
           </p>
         </div>
         
-        {/* AI Enhancer */}
-        <AIEnhancer
-          isbn={isbn}
-          edition={edition}
-          conditionText={conditionText || ''}
-          currentTitle={title}
-          currentDescription={description}
-          onApplyTitle={(title) => setValue('title', title)}
-          onApplyDescription={(desc) => setValue('description', desc)}
-          onApplyBullets={(bullets) => {
-            // Store bullets in description or tags
-            setValue('tags', bullets)
-          }}
-          onApplyKeywords={(keywords) => setValue('tags', keywords)}
-          onApplyPriceRange={(min, max) => {
-            const avgPrice = ((min + max) / 2).toFixed(2)
-            setValue('price', avgPrice)
-          }}
-        />
+        {/* AI Enhancement Info - Automatic on submit for Pro users */}
+        {isPro && (
+          <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-teal-50 border border-purple-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <span>✨</span> AI Enhancement
+                </h3>
+                <p className="text-sm text-gray-700 mb-2">
+                  Your listing will be automatically enhanced with AI when you submit! We&apos;ll optimize your title, description, and add relevant keywords based on the information you provide.
+                </p>
+                {conditionText && conditionText.trim() && (
+                  <p className="text-xs text-gray-600">
+                    ✓ Condition text provided - AI will use this to create an optimized listing
+                  </p>
+                )}
+                {(!conditionText || !conditionText.trim()) && (
+                  <p className="text-xs text-amber-600">
+                    💡 Tip: Add condition details above for better AI enhancement results
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         
         <div className="mb-4">
           <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
@@ -483,14 +532,30 @@ export default function AddBookPage() {
           </div>
         )}
         
+        {enhanceError && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              Note: AI enhancement unavailable. Your listing will be added as-is.
+            </p>
+          </div>
+        )}
+        
+        {isPro && conditionText && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              ✨ Pro feature: Your listing will be automatically enhanced with AI when you submit!
+            </p>
+          </div>
+        )}
+        
         <div className="flex gap-4 mt-6">
           <Button
             type="submit"
             variant="primary"
-            loading={isSubmitting || loading || isCategorizing || uploadingImage}
-            disabled={isSubmitting || loading || isCategorizing || uploadingImage}
+            loading={isSubmitting || loading || isCategorizing || isEnhancing || uploadingImage}
+            disabled={isSubmitting || loading || isCategorizing || isEnhancing || uploadingImage}
           >
-            {isCategorizing ? 'Categorizing...' : uploadingImage ? 'Uploading image...' : 'Add Listing'}
+            {isEnhancing ? 'Enhancing with AI...' : isCategorizing ? 'Categorizing...' : uploadingImage ? 'Uploading image...' : 'Add Listing'}
           </Button>
           <Button
             type="button"
