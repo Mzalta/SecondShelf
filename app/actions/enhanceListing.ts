@@ -71,20 +71,24 @@ async function checkProAndRateLimit(userId: string): Promise<{ allowed: boolean;
       .select()
       .single()
     
-    if (createError) {
+    if (createError || !newProfile) {
       return { allowed: false, remaining: 0, error: 'Failed to create profile' }
     }
     profile = newProfile
-  } else if (profileError) {
+  } else if (profileError || !profile) {
     return { allowed: false, remaining: 0, error: 'Failed to fetch profile' }
   }
   
+  // At this point, profile is guaranteed to be non-null
+  // TypeScript doesn't understand the control flow, so we assert it
+  const profileData = profile!
+  
   // Reset counter if it's been more than 24 hours
-  const lastReset = profile.last_reset ? new Date(profile.last_reset) : new Date()
+  const lastReset = profileData.last_reset ? new Date(profileData.last_reset) : new Date()
   const now = new Date()
   const hoursSinceReset = (now.getTime() - lastReset.getTime()) / (1000 * 60 * 60)
   
-  let used = profile.ai_enhancements_used || 0
+  let used = profileData.ai_enhancements_used || 0
   if (hoursSinceReset >= 24) {
     // Reset the counter
     await supabase
@@ -232,7 +236,7 @@ Output ONLY valid JSON, no additional text or markdown.`
     console.error('Error enhancing listing:', error)
     
     if (error instanceof z.ZodError) {
-      return { success: false, error: `Validation error: ${error.errors.map(e => e.message).join(', ')}` }
+      return { success: false, error: `Validation error: ${error.issues.map(e => e.message).join(', ')}` }
     }
     
     return { success: false, error: error.message || 'Failed to enhance listing' }
@@ -359,7 +363,7 @@ Output ONLY valid JSON, no additional text or markdown.`
     console.error('Error getting buyer insights:', error)
     
     if (error instanceof z.ZodError) {
-      return { success: false, error: `Validation error: ${error.errors.map(e => e.message).join(', ')}` }
+      return { success: false, error: `Validation error: ${error.issues.map(e => e.message).join(', ')}` }
     }
     
     return { success: false, error: error.message || 'Failed to get insights' }
