@@ -49,9 +49,10 @@ if (process.env.NODE_ENV === 'production') {
 async function runSeed() {
   console.log('🌱 Starting database seeding...\n')
 
+  // TypeScript: We've already checked these are defined above
   const result = await seedListings(
-    supabaseUrl,
-    supabaseServiceKey,
+    supabaseUrl as string,
+    supabaseServiceKey as string,
     {
       skipIfExists: true,
       existingThreshold: 50
