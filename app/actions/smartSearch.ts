@@ -381,14 +381,14 @@ export async function smartSearch(
   const profile = await getUserProfile(user.id)
   const isPro = profile?.is_pro ?? false
   try {
-    // If no user or not Pro, use basic search
-    if (!userId || !isPro) {
+    // If not Pro, use basic search
+    if (!isPro) {
       const books = await basicKeywordSearch(query)
       return { books, aiUsed: false }
     }
     
     // Check rate limiting
-    const rateLimit = await checkAndUpdateRateLimit(userId)
+    const rateLimit = await checkAndUpdateRateLimit(user.id)
     if (!rateLimit.allowed) {
       // Rate limited - fall back to basic search
       const books = await basicKeywordSearch(query)
