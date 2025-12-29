@@ -161,7 +161,14 @@ export async function enhanceListing(
     // Check OpenAI API key
     const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) {
-      return { success: false, error: 'OpenAI API key not configured' }
+      console.error('OpenAI API key not found in environment variables')
+      return { success: false, error: 'OpenAI API key not configured. Please check your environment variables.' }
+    }
+    
+    // Validate API key format
+    if (!apiKey.startsWith('sk-')) {
+      console.error('OpenAI API key format is invalid (should start with sk-)')
+      return { success: false, error: 'OpenAI API key format is invalid. API keys should start with "sk-".' }
     }
     
     // Build prompt
@@ -193,19 +200,46 @@ For price_min_usd and price_max_usd, estimate a fair market price range for a us
 Output ONLY valid JSON, no additional text or markdown.`
     
     // Call OpenAI
-    const openai = new OpenAI({ apiKey })
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-    })
+    let completion
+    try {
+      const openai = new OpenAI({ apiKey })
+      completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.7,
+      })
+    } catch (openaiError: any) {
+      console.error('OpenAI API error:', {
+        message: openaiError.message,
+        status: openaiError.status,
+        code: openaiError.code,
+        type: openaiError.type,
+      })
+      
+      // Handle specific OpenAI API errors
+      if (openaiError.status === 401) {
+        return { success: false, error: 'Invalid OpenAI API key. Please check your API key in environment variables.' }
+      }
+      if (openaiError.status === 429) {
+        return { success: false, error: 'OpenAI API rate limit exceeded. Please try again later.' }
+      }
+      if (openaiError.status === 500 || openaiError.status === 503) {
+        return { success: false, error: 'OpenAI API is temporarily unavailable. Please try again later.' }
+      }
+      if (openaiError.code === 'insufficient_quota') {
+        return { success: false, error: 'OpenAI API quota exceeded. Please check your OpenAI account billing.' }
+      }
+      
+      return { success: false, error: `OpenAI API error: ${openaiError.message || 'Unknown error'}` }
+    }
     
     const content = completion.choices[0]?.message?.content
     if (!content) {
+      console.error('OpenAI returned empty response')
       return { success: false, error: 'No response from OpenAI' }
     }
     
@@ -233,10 +267,24 @@ Output ONLY valid JSON, no additional text or markdown.`
     
     return { success: true, data: validated, remaining: updatedRemaining }
   } catch (error: any) {
-    console.error('Error enhancing listing:', error)
+    console.error('Error enhancing listing:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    })
     
     if (error instanceof z.ZodError) {
       return { success: false, error: `Validation error: ${error.issues.map(e => e.message).join(', ')}` }
+    }
+    
+    // Check if it's an OpenAI error that wasn't caught earlier
+    if (error?.status || error?.code) {
+      if (error.status === 401) {
+        return { success: false, error: 'Invalid OpenAI API key. Please check your API key in environment variables.' }
+      }
+      if (error.status === 429) {
+        return { success: false, error: 'OpenAI API rate limit exceeded. Please try again later.' }
+      }
     }
     
     return { success: false, error: error.message || 'Failed to enhance listing' }
@@ -278,7 +326,14 @@ export async function getBuyerInsights(
     // Check OpenAI API key
     const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) {
-      return { success: false, error: 'OpenAI API key not configured' }
+      console.error('OpenAI API key not found in environment variables')
+      return { success: false, error: 'OpenAI API key not configured. Please check your environment variables.' }
+    }
+    
+    // Validate API key format
+    if (!apiKey.startsWith('sk-')) {
+      console.error('OpenAI API key format is invalid (should start with sk-)')
+      return { success: false, error: 'OpenAI API key format is invalid. API keys should start with "sk-".' }
     }
     
     // Build prompt for buyer insights
@@ -310,19 +365,46 @@ For fair_price_range, estimate a reasonable price range for this book in this co
 Output ONLY valid JSON, no additional text or markdown.`
     
     // Call OpenAI
-    const openai = new OpenAI({ apiKey })
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-    })
+    let completion
+    try {
+      const openai = new OpenAI({ apiKey })
+      completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.7,
+      })
+    } catch (openaiError: any) {
+      console.error('OpenAI API error:', {
+        message: openaiError.message,
+        status: openaiError.status,
+        code: openaiError.code,
+        type: openaiError.type,
+      })
+      
+      // Handle specific OpenAI API errors
+      if (openaiError.status === 401) {
+        return { success: false, error: 'Invalid OpenAI API key. Please check your API key in environment variables.' }
+      }
+      if (openaiError.status === 429) {
+        return { success: false, error: 'OpenAI API rate limit exceeded. Please try again later.' }
+      }
+      if (openaiError.status === 500 || openaiError.status === 503) {
+        return { success: false, error: 'OpenAI API is temporarily unavailable. Please try again later.' }
+      }
+      if (openaiError.code === 'insufficient_quota') {
+        return { success: false, error: 'OpenAI API quota exceeded. Please check your OpenAI account billing.' }
+      }
+      
+      return { success: false, error: `OpenAI API error: ${openaiError.message || 'Unknown error'}` }
+    }
     
     const content = completion.choices[0]?.message?.content
     if (!content) {
+      console.error('OpenAI returned empty response')
       return { success: false, error: 'No response from OpenAI' }
     }
     
@@ -360,10 +442,24 @@ Output ONLY valid JSON, no additional text or markdown.`
     
     return { success: true, data: validated, remaining: updatedRemaining }
   } catch (error: any) {
-    console.error('Error getting buyer insights:', error)
+    console.error('Error getting buyer insights:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    })
     
     if (error instanceof z.ZodError) {
       return { success: false, error: `Validation error: ${error.issues.map(e => e.message).join(', ')}` }
+    }
+    
+    // Check if it's an OpenAI error that wasn't caught earlier
+    if (error?.status || error?.code) {
+      if (error.status === 401) {
+        return { success: false, error: 'Invalid OpenAI API key. Please check your API key in environment variables.' }
+      }
+      if (error.status === 429) {
+        return { success: false, error: 'OpenAI API rate limit exceeded. Please try again later.' }
+      }
     }
     
     return { success: false, error: error.message || 'Failed to get insights' }

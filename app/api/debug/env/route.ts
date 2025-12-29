@@ -22,6 +22,8 @@ export async function GET() {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+    OPENAI_API_KEY_PREFIX: process.env.OPENAI_API_KEY?.substring(0, 7) || 'NOT SET',
+    OPENAI_API_KEY_FORMAT_VALID: process.env.OPENAI_API_KEY?.startsWith('sk-') || false,
     NODE_ENV: process.env.NODE_ENV,
     VERCEL: !!process.env.VERCEL,
     VERCEL_ENV: process.env.VERCEL_ENV || 'not set',
