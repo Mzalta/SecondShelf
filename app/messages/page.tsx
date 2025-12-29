@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { MessageSquare, Clock } from 'lucide-react'
+import { MessageSquare, Clock, Lock } from 'lucide-react'
 import Loading from '@/components/ui/Loading'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { getCurrentUser } from '@/lib/auth/auth'
+import { useProStatus } from '@/lib/hooks/useProStatus'
+import Button from '@/components/ui/Button'
 
 interface Conversation {
   id: string
@@ -38,6 +40,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const { isPro, loading: proLoading } = useProStatus()
 
   useEffect(() => {
     async function loadData() {
@@ -49,26 +52,31 @@ export default function MessagesPage() {
         return
       }
 
-      try {
-        const response = await fetch('/api/messages', {
-          credentials: 'include',
-        })
+      // Only load conversations if user is Pro
+      if (!proLoading && isPro) {
+        try {
+          const response = await fetch('/api/messages', {
+            credentials: 'include',
+          })
 
-        if (!response.ok) {
-          throw new Error('Failed to load conversations')
+          if (!response.ok) {
+            throw new Error('Failed to load conversations')
+          }
+
+          const data = await response.json()
+          setConversations(data.conversations || [])
+        } catch (err: any) {
+          setError(err.message || 'Failed to load conversations')
+        } finally {
+          setLoading(false)
         }
-
-        const data = await response.json()
-        setConversations(data.conversations || [])
-      } catch (err: any) {
-        setError(err.message || 'Failed to load conversations')
-      } finally {
+      } else if (!proLoading && !isPro) {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [router])
+  }, [router, isPro, proLoading])
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString)
@@ -89,7 +97,7 @@ export default function MessagesPage() {
     return user.full_name || user.username || user.email || 'User'
   }
 
-  if (loading) {
+  if (loading || proLoading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Messages</h1>
@@ -109,6 +117,27 @@ export default function MessagesPage() {
             className="text-purple-600 hover:text-purple-700 font-medium"
           >
             Go to Home
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Pro-only message if user is not Pro
+  if (!isPro) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-6">Messages</h1>
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <Lock size={48} className="mx-auto text-purple-600 mb-4" />
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Pro Feature</h2>
+          <p className="text-gray-600 mb-6">
+            Messaging is only available to Pro subscribers. Upgrade to Pro to start messaging sellers and buyers.
+          </p>
+          <Link href="/subscription">
+            <Button variant="primary" className="inline-flex">
+              Upgrade to Pro
+            </Button>
           </Link>
         </div>
       </div>

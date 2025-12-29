@@ -3,12 +3,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Send, Clock } from 'lucide-react'
+import { ArrowLeft, Send, Clock, Lock } from 'lucide-react'
 import Loading from '@/components/ui/Loading'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { getCurrentUser } from '@/lib/auth/auth'
 import { createBrowserClient } from '@/lib/supabase/browser'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { useProStatus } from '@/lib/hooks/useProStatus'
+import Button from '@/components/ui/Button'
 
 interface Message {
   id: string
@@ -51,6 +53,7 @@ export default function ConversationPage() {
   const [messageContent, setMessageContent] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const { isPro, loading: proLoading } = useProStatus()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -76,29 +79,34 @@ export default function ConversationPage() {
         return
       }
 
-      try {
-        const response = await fetch(`/api/messages/${conversationId}`, {
-          credentials: 'include',
-        })
+      // Only load conversation if user is Pro
+      if (!proLoading && isPro) {
+        try {
+          const response = await fetch(`/api/messages/${conversationId}`, {
+            credentials: 'include',
+          })
 
-        if (!response.ok) {
+          if (!response.ok) {
+            const data = await response.json()
+            throw new Error(data.error || 'Failed to load conversation')
+          }
+
           const data = await response.json()
-          throw new Error(data.error || 'Failed to load conversation')
+          setConversationData(data)
+          // Reverse messages to show oldest first
+          setMessages([...data.messages].reverse())
+
+          // Mark messages as read
+          await fetch(`/api/messages/${conversationId}/read`, {
+            method: 'PATCH',
+            credentials: 'include',
+          })
+        } catch (err: any) {
+          setError(err.message || 'Failed to load conversation')
+        } finally {
+          setLoading(false)
         }
-
-        const data = await response.json()
-        setConversationData(data)
-        // Reverse messages to show oldest first
-        setMessages([...data.messages].reverse())
-
-        // Mark messages as read
-        await fetch(`/api/messages/${conversationId}/read`, {
-          method: 'PATCH',
-          credentials: 'include',
-        })
-      } catch (err: any) {
-        setError(err.message || 'Failed to load conversation')
-      } finally {
+      } else if (!proLoading && !isPro) {
         setLoading(false)
       }
     }
@@ -137,7 +145,7 @@ export default function ConversationPage() {
     return () => {
       channel.unsubscribe()
     }
-  }, [conversationId, router, currentUser?.id])
+  }, [conversationId, router, currentUser?.id, isPro, proLoading])
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -189,10 +197,60 @@ export default function ConversationPage() {
     return user.full_name || user.username || user.email || 'User'
   }
 
-  if (loading) {
+  if (loading || proLoading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <Loading />
+      </div>
+    )
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Link
+          href="/messages"
+          className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-4"
+        >
+          <ArrowLeft size={16} />
+          Back to Messages
+        </Link>
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <p className="text-gray-600 mb-4">Please sign in to view this conversation.</p>
+          <Link
+            href="/"
+            className="text-purple-600 hover:text-purple-700 font-medium"
+          >
+            Go to Home
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Pro-only message if user is not Pro
+  if (!isPro) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Link
+          href="/messages"
+          className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-4"
+        >
+          <ArrowLeft size={16} />
+          Back to Messages
+        </Link>
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <Lock size={48} className="mx-auto text-purple-600 mb-4" />
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Pro Feature</h2>
+          <p className="text-gray-600 mb-6">
+            Messaging is only available to Pro subscribers. Upgrade to Pro to start messaging sellers and buyers.
+          </p>
+          <Link href="/subscription">
+            <Button variant="primary" className="inline-flex">
+              Upgrade to Pro
+            </Button>
+          </Link>
+        </div>
       </div>
     )
   }
