@@ -31,6 +31,7 @@ interface ConversationData {
       username: string | null
       full_name: string | null
       avatar_url: string | null
+      email?: string | null
     }
   }
   messages: Message[]
@@ -185,7 +186,7 @@ export default function ConversationPage() {
   }
 
   const getDisplayName = (user: ConversationData['conversation']['other_user']) => {
-    return user.full_name || user.username || 'User'
+    return user.full_name || user.username || user.email || 'User'
   }
 
   if (loading) {

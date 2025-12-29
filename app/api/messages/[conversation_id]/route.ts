@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserId } from '@/lib/auth/isPro'
+import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -70,6 +71,8 @@ export async function GET(
     // Get other participant info (if profiles table exists)
     const otherUserId = conversation.buyer_id === userId ? conversation.seller_id : conversation.buyer_id
     let otherUser = null
+    let userEmail = null
+    
     try {
       const { data } = await supabase
         .from('profiles')
@@ -82,6 +85,26 @@ export async function GET(
       console.log('Profiles table not found or error fetching profile:', err)
     }
 
+    // If no profile found, get email from auth.users using admin client
+    if (!otherUser && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      try {
+        const supabaseAdmin = createSupabaseAdminClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY,
+          {
+            auth: {
+              autoRefreshToken: false,
+              persistSession: false,
+            },
+          }
+        )
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(otherUserId)
+        userEmail = authUser?.user?.email || null
+      } catch (err) {
+        console.log('Error fetching user email:', err)
+      }
+    }
+
     return NextResponse.json({
       conversation: {
         id: conversation.id,
@@ -91,6 +114,7 @@ export async function GET(
           username: null,
           full_name: null,
           avatar_url: null,
+          email: userEmail,
         },
       },
       messages: messages || [],

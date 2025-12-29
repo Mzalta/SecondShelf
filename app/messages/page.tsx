@@ -21,6 +21,7 @@ interface Conversation {
     username: string | null
     full_name: string | null
     avatar_url: string | null
+    email?: string | null
   }
   last_message: {
     id: string
@@ -85,7 +86,7 @@ export default function MessagesPage() {
   }
 
   const getDisplayName = (user: Conversation['other_user']) => {
-    return user.full_name || user.username || 'User'
+    return user.full_name || user.username || user.email || 'User'
   }
 
   if (loading) {
