@@ -8,7 +8,7 @@ import Loading from '@/components/ui/Loading'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
 import { getCurrentUser } from '@/lib/auth/auth'
 import { createBrowserClient } from '@/lib/supabase/browser'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 interface Message {
   id: string
@@ -116,7 +116,7 @@ export default function ConversationPage() {
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
         },
-        async (payload) => {
+        async (payload: RealtimePostgresChangesPayload<Message>) => {
           const newMessage = payload.new as Message
           setMessages((prev) => [...prev, newMessage])
           
