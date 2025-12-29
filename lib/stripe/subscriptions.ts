@@ -7,6 +7,32 @@ import Stripe from 'stripe'
 import { SupabaseClient } from '@supabase/supabase-js'
 
 /**
+ * Safely convert Stripe Unix timestamp to ISO string
+ * Stripe timestamps can be null or 0 for non-applicable dates (e.g., no trial, not canceled)
+ * Returns null for invalid timestamps (null, undefined, or <= 0)
+ * 
+ * @param ts - Stripe Unix timestamp (number | null | undefined)
+ * @returns ISO string or null
+ */
+function safeTimestampToISOString(ts: number | null | undefined): string | null {
+  if (ts === null || ts === undefined || ts <= 0) return null
+  return new Date(ts * 1000).toISOString()
+}
+
+/**
+ * Safely convert Stripe Unix timestamp to Date object
+ * Stripe timestamps can be null or 0 for non-applicable dates
+ * Returns null for invalid timestamps (null, undefined, or <= 0)
+ * 
+ * @param ts - Stripe Unix timestamp (number | null | undefined)
+ * @returns Date object or null
+ */
+function safeTimestampToDate(ts: number | null | undefined): Date | null {
+  if (ts === null || ts === undefined || ts <= 0) return null
+  return new Date(ts * 1000)
+}
+
+/**
  * Canonical function to upsert a subscription from Stripe
  * This is the single source of truth for syncing Stripe subscriptions to the database
  * 
@@ -21,13 +47,30 @@ export async function upsertSubscriptionFromStripe(
   supabaseAdmin: SupabaseClient<any>
 ): Promise<any> {
   // Normalize Stripe subscription data
+  // Note: Stripe sends null or 0 for optional timestamps when not applicable (e.g., no trial, not canceled)
+  // We use safe conversion to avoid "Invalid time value" errors
+  // For required fields like current_period_start/end, we validate they exist for valid subscriptions
+  const currentPeriodStart = safeTimestampToISOString(subscription.current_period_start)
+  const currentPeriodEnd = safeTimestampToISOString(subscription.current_period_end)
+  
+  // Validate required timestamp fields - these should always be present for valid subscriptions
+  if (!currentPeriodStart || !currentPeriodEnd) {
+    const error = new Error(
+      `Invalid subscription data: missing required timestamps for subscription ${subscription.id}. ` +
+      `current_period_start: ${subscription.current_period_start}, current_period_end: ${subscription.current_period_end}`
+    )
+    console.error('❌', error.message)
+    throw error
+  }
+
   const subscriptionData = {
     user_id: userId,
     stripe_subscription_id: subscription.id, // This is our unique key
     stripe_customer_id: subscription.customer as string,
     status: subscription.status, // Stripe status: active, trialing, past_due, canceled, etc.
-    current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
-    current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
+    // Required fields - validated above to ensure they're not null
+    current_period_start: currentPeriodStart,
+    current_period_end: currentPeriodEnd,
     cancel_at_period_end: subscription.cancel_at_period_end || false,
     updated_at: new Date().toISOString(),
   }
