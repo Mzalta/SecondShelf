@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 
 // Ensure this route runs on Node.js runtime (required for Stripe)
 export const runtime = 'nodejs'
@@ -12,7 +13,11 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   try {
-    // Initialize Stripe client lazily (only when route is called, not during build)
+    // Debug: Log cookies to verify they're being sent
+    const allCookies = cookies().getAll()
+    console.log('Auth cookies:', allCookies.map(c => c.name).filter(name => name.includes('sb-') || name.includes('auth')))
+
+    // Initialize Stripe client
     if (!process.env.STRIPE_SECRET_KEY) {
       console.error('STRIPE_SECRET_KEY is missing from environment variables')
       return NextResponse.json(
@@ -23,32 +28,24 @@ export async function POST(request: NextRequest) {
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
+    // Create Supabase server client (reads from cookies)
     const supabase = createClient()
-    
-    // Try to get session first (works better with cookies)
+
+    // Get authenticated user from cookies
     const {
-      data: { session: authSession },
-      error: sessionError,
-    } = await supabase.auth.getSession()
-    
-    // If no session, try getUser
-    let user = authSession?.user
-    if (!user) {
-      const {
-        data: { user: userData },
-        error: authError,
-      } = await supabase.auth.getUser()
-      
-      if (authError || !userData) {
-        console.error('Authentication error:', authError || sessionError)
-        return NextResponse.json(
-          { error: 'Unauthorized. Please sign in to upgrade your plan.' },
-          { status: 401 }
-        )
-      }
-      
-      user = userData
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.error('Authentication error:', authError)
+      return NextResponse.json(
+        { error: 'Unauthorized. Please sign in to upgrade your plan.' },
+        { status: 401 }
+      )
     }
+
+    console.log(`🔎 Authenticated user: ${user.id}`)
 
     // Check if user already has an active subscription
     const { data: existingSubscription } = await supabase
@@ -76,31 +73,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Create or retrieve Stripe customer
+    // DO NOT create subscription row here - only create it when webhook fires
     let customerId: string
     
-    // Check if user already has a customer ID
+    // Check if user already has a customer ID in any subscription record
     const { data: existingSub } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')
       .eq('user_id', user.id)
       .not('stripe_customer_id', 'is', null)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (existingSub?.stripe_customer_id) {
       customerId = existingSub.stripe_customer_id
+      console.log(`✅ Found existing Stripe customer: ${customerId}`)
     } else {
-      // Create new Stripe customer
+      // Create new Stripe customer with user_id in metadata
+      // This is the ONLY database interaction we do here - storing customer_id
+      // Subscription row will be created ONLY when webhook fires
+      console.log('📝 Creating new Stripe customer...')
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: {
-          supabase_user_id: user.id,
+          user_id: user.id, // Use user_id for consistency
+          supabase_user_id: user.id, // Also include for backward compatibility
         },
       })
       customerId = customer.id
+      console.log(`✅ Created Stripe customer: ${customerId} (subscription will be created via webhook)`)
     }
 
     // Create Checkout Session
+    // Note: Customer metadata is already set when customer was created above
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
@@ -111,10 +116,10 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?success=true`,
+      success_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${request.headers.get('origin') || 'http://localhost:3000'}/subscription?canceled=true`,
       metadata: {
-        user_id: user.id,
+        user_id: user.id, // Store user_id in checkout session metadata
       },
     })
 
@@ -130,4 +135,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

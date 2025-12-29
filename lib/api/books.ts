@@ -15,6 +15,7 @@ function dbBookToBook(dbBook: DatabaseBook): Book {
     poster: dbBook.poster || undefined,
     sold: dbBook.sold,
     category: dbBook.category || undefined,
+    imageUrl: dbBook.image_url || undefined,
     createdAt: dbBook.created_at,
     updatedAt: dbBook.updated_at,
   }
@@ -32,6 +33,7 @@ function bookToDbFormat(book: BookFormData | Partial<Book>): Partial<DatabaseBoo
   if ('poster' in book) dbBook.poster = book.poster || null
   if ('sold' in book) dbBook.sold = book.sold ?? false
   if ('category' in book) dbBook.category = book.category || null
+  if ('imageUrl' in book) dbBook.image_url = book.imageUrl || null
   
   return dbBook
 }

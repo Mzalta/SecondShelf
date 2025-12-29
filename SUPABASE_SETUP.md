@@ -55,3 +55,46 @@ Once you've completed Phase 1, we'll move on to:
 - **Phase 3**: Setting up the API service layer
 - **Phase 4**: Updating the application code
 
+---
+
+## Storage Setup (For Image Uploads)
+
+To enable image uploads for book listings, you need to create a storage bucket:
+
+### Step 1: Create Storage Bucket
+
+1. Go to your Supabase project dashboard
+2. Navigate to **Storage** in the left sidebar
+3. Click **New bucket**
+4. Enter the bucket name: `book-images`
+5. Make sure **Public bucket** is checked (so images can be accessed publicly)
+6. Click **Create bucket**
+
+### Step 2: Set Up Storage Policies
+
+1. After creating the bucket, click on it to open bucket settings
+2. Go to the **Policies** tab
+3. Create a policy to allow authenticated users to upload files:
+   - Click **New Policy**
+   - Choose **For full customization**
+   - Policy name: `Allow authenticated users to upload images`
+   - Allowed operation: `INSERT`
+   - Policy definition:
+     ```sql
+     (bucket_id = 'book-images'::text) AND (auth.role() = 'authenticated'::text)
+     ```
+   - Click **Review** then **Save policy**
+
+4. Create a policy to allow public read access:
+   - Click **New Policy** again
+   - Choose **For full customization**
+   - Policy name: `Allow public read access`
+   - Allowed operation: `SELECT`
+   - Policy definition:
+     ```sql
+     (bucket_id = 'book-images'::text)
+     ```
+   - Click **Review** then **Save policy**
+
+Now image uploads should work when adding book listings!
+

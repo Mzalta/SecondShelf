@@ -7,7 +7,7 @@ import Navbar from './Navbar'
 import SearchBar from '@/components/features/search/SearchBar'
 import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle, signOut } from '@/lib/auth/auth'
-import { createClient } from '@/lib/supabase/client'
+import { createBrowserClient } from '@/lib/supabase/browser'
 import { ChevronDown } from 'lucide-react'
 
 export default function Header() {
@@ -29,8 +29,8 @@ export default function Header() {
       setLoading(false)
     })
 
-    // Listen for auth state changes
-    const supabase = createClient()
+    // Listen for auth state changes using shared browser client
+    const supabase = createBrowserClient()
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
@@ -151,7 +151,7 @@ export default function Header() {
                         onClick={() => setAccountMenuOpen(false)}
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 no-underline transition-colors"
                       >
-                        Upgrade to Pro
+                        Manage Subscription
                       </Link>
                       <div className="border-t border-gray-200 my-1"></div>
                       <button

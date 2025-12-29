@@ -1,8 +1,13 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Book } from '@/types'
 import Button from '@/components/ui/Button'
-import { Heart, HeartOff, ShoppingBag, Trash2, Mail, Phone, Edit } from 'lucide-react'
+import { Heart, HeartOff, ShoppingBag, Trash2, Mail, Phone, Edit, MessageSquare } from 'lucide-react'
+import { useProStatus } from '@/lib/hooks/useProStatus'
+import { getCurrentUser } from '@/lib/auth/auth'
+import Link from 'next/link'
 
 interface BookCardProps {
   book: Book
@@ -25,15 +30,87 @@ export default function BookCard({
   onDelete,
   onEdit
 }: BookCardProps) {
+  const router = useRouter()
+  const { isPro, loading: proLoading } = useProStatus()
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [messageLoading, setMessageLoading] = useState(false)
+
+  // Check if user is authenticated
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      setCurrentUser(user)
+      setLoading(false)
+    })
+  }, [])
+
   // Extract price value for display
   const priceValue = book.price.replace(/[^0-9.]/g, '')
   const isPrice = /^\$?\d+/.test(book.price)
 
+  const handleMessageClick = async () => {
+    if (!currentUser) {
+      // Redirect to sign in
+      router.push(`/auth/callback?returnTo=${encodeURIComponent(window.location.pathname)}`)
+      return
+    }
+
+    if (!isPro) {
+      // Redirect to subscription page
+      router.push('/subscription')
+      return
+    }
+
+    if (!book.id) {
+      alert('Listing ID is missing')
+      return
+    }
+
+    try {
+      setMessageLoading(true)
+      const response = await fetch('/api/messages/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ listing_id: book.id }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        if (response.status === 403) {
+          // Not Pro - redirect to subscription
+          router.push('/subscription')
+        } else {
+          alert(data.error || 'Failed to start conversation')
+        }
+        return
+      }
+
+      const data = await response.json()
+      router.push(`/messages/${data.conversation_id}`)
+    } catch (error) {
+      console.error('Error starting conversation:', error)
+      alert('Failed to start conversation. Please try again.')
+    } finally {
+      setMessageLoading(false)
+    }
+  }
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 group">
-      {/* Image Placeholder */}
-      <div className="w-full h-64 bg-gradient-to-br from-teal-50 to-purple-50 flex items-center justify-center relative">
-        <div className="text-6xl opacity-30">📚</div>
+      {/* Image */}
+      <div className="w-full h-64 bg-gradient-to-br from-teal-50 to-purple-50 flex items-center justify-center relative overflow-hidden">
+        {book.imageUrl ? (
+          <img
+            src={book.imageUrl}
+            alt={book.title}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="text-6xl opacity-30">📚</div>
+        )}
         {book.sold && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <span className="bg-red-600 text-white px-4 py-2 rounded font-bold text-lg">SOLD</span>
@@ -90,6 +167,42 @@ export default function BookCard({
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-2">
+          {!book.sold && !isOwner && (
+            <>
+              {/* Message Button - only show if not owner */}
+              {!loading && !proLoading && (
+                <>
+                  {currentUser && isPro ? (
+                    <button
+                      onClick={handleMessageClick}
+                      disabled={messageLoading}
+                      className="w-full py-2 px-4 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <MessageSquare size={16} />
+                      {messageLoading ? 'Starting...' : 'Message Seller'}
+                    </button>
+                  ) : currentUser && !isPro ? (
+                    <Link
+                      href="/subscription"
+                      className="w-full py-2 px-4 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 text-center"
+                    >
+                      <MessageSquare size={16} />
+                      Upgrade to Pro to message
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/auth/callback?returnTo=${encodeURIComponent(window.location.pathname)}`}
+                      className="w-full py-2 px-4 bg-gray-600 text-white rounded-md text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-center"
+                    >
+                      <MessageSquare size={16} />
+                      Sign in to message
+                    </Link>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
           {!book.sold && (
             <button
               onClick={onToggleFavorite}

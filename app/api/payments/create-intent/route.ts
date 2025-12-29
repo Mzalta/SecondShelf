@@ -3,6 +3,10 @@ import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 import { getBookById } from '@/lib/api/books'
 
+// Ensure this route is dynamic (not statically generated)
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 /**
  * POST /api/payments/create-intent
  * Creates a Stripe Payment Intent for purchasing a book

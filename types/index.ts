@@ -11,6 +11,7 @@ export interface Book {
   poster?: string
   sold?: boolean
   category?: string
+  imageUrl?: string
   createdAt?: string
   updatedAt?: string
 }
@@ -23,6 +24,7 @@ export interface BookFormData {
   contact: string
   poster: string
   category?: string
+  imageUrl?: string
 }
 
 export interface Filters {
