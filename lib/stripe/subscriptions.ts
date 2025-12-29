@@ -50,14 +50,15 @@ export async function upsertSubscriptionFromStripe(
   // Note: Stripe sends null or 0 for optional timestamps when not applicable (e.g., no trial, not canceled)
   // We use safe conversion to avoid "Invalid time value" errors
   // For required fields like current_period_start/end, we validate they exist for valid subscriptions
-  const currentPeriodStart = safeTimestampToISOString(subscription.current_period_start)
-  const currentPeriodEnd = safeTimestampToISOString(subscription.current_period_end)
+  // Access properties with type assertion as Stripe types may not expose all properties directly
+  const currentPeriodStart = safeTimestampToISOString((subscription as any).current_period_start)
+  const currentPeriodEnd = safeTimestampToISOString((subscription as any).current_period_end)
   
   // Validate required timestamp fields - these should always be present for valid subscriptions
   if (!currentPeriodStart || !currentPeriodEnd) {
     const error = new Error(
       `Invalid subscription data: missing required timestamps for subscription ${subscription.id}. ` +
-      `current_period_start: ${subscription.current_period_start}, current_period_end: ${subscription.current_period_end}`
+      `current_period_start: ${(subscription as any).current_period_start}, current_period_end: ${(subscription as any).current_period_end}`
     )
     console.error('❌', error.message)
     throw error
