@@ -16,6 +16,11 @@ function dbBookToBook(dbBook: DatabaseBook): Book {
     sold: dbBook.sold,
     category: dbBook.category || undefined,
     imageUrl: dbBook.image_url || undefined,
+    isbn: (dbBook as any).isbn || undefined,
+    edition: (dbBook as any).edition || undefined,
+    condition_text: (dbBook as any).condition_text || undefined,
+    description: (dbBook as any).description || undefined,
+    tags: (dbBook as any).tags || undefined,
     createdAt: dbBook.created_at,
     updatedAt: dbBook.updated_at,
   }
@@ -23,7 +28,7 @@ function dbBookToBook(dbBook: DatabaseBook): Book {
 
 // Helper function to convert app book to database format
 function bookToDbFormat(book: BookFormData | Partial<Book>): Partial<DatabaseBook> {
-  const dbBook: Partial<DatabaseBook> = {}
+  const dbBook: any = {}
   
   if ('title' in book) dbBook.title = book.title
   if ('author' in book) dbBook.author = book.author
@@ -34,6 +39,11 @@ function bookToDbFormat(book: BookFormData | Partial<Book>): Partial<DatabaseBoo
   if ('sold' in book) dbBook.sold = book.sold ?? false
   if ('category' in book) dbBook.category = book.category || null
   if ('imageUrl' in book) dbBook.image_url = book.imageUrl || null
+  if ('isbn' in book) dbBook.isbn = book.isbn || null
+  if ('edition' in book) dbBook.edition = book.edition || null
+  if ('condition_text' in book) dbBook.condition_text = book.condition_text || null
+  if ('description' in book) dbBook.description = book.description || null
+  if ('tags' in book) dbBook.tags = book.tags || null
   
   return dbBook
 }

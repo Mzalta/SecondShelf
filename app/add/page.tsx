@@ -12,6 +12,7 @@ import { uploadBookImage } from '@/lib/utils/imageUpload'
 import FormInput from '@/components/features/forms/FormInput'
 import Button from '@/components/ui/Button'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
+import AIEnhancer from '@/components/features/books/AIEnhancer'
 import { BookFormData } from '@/types'
 import { Upload, X } from 'lucide-react'
 
@@ -22,7 +23,12 @@ const bookSchema = z.object({
   price: z.string().min(1, 'Price is required'),
   contact: z.string().min(1, 'Contact information is required'),
   poster: z.string().min(1, 'Your name is required'),
-  category: z.string().optional()
+  category: z.string().optional(),
+  isbn: z.string().optional(),
+  edition: z.string().optional(),
+  condition_text: z.string().optional(),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 })
 
 export default function AddBookPage() {
@@ -53,6 +59,10 @@ export default function AddBookPage() {
   const author = watch('author')
   const course = watch('course')
   const price = watch('price')
+  const isbn = watch('isbn')
+  const edition = watch('edition')
+  const conditionText = watch('condition_text')
+  const description = watch('description')
   
   // Check authentication on mount
   useEffect(() => {
@@ -304,6 +314,79 @@ export default function AddBookPage() {
           error={errors.course?.message}
           {...register('course')}
         />
+        
+        <FormInput
+          label="ISBN"
+          placeholder="e.g., 978-0-123456-78-9 (Optional)"
+          error={errors.isbn?.message}
+          {...register('isbn')}
+        />
+        
+        <FormInput
+          label="Edition"
+          placeholder="e.g., 5th Edition, 2023 Edition (Optional)"
+          error={errors.edition?.message}
+          {...register('edition')}
+        />
+        
+        <div className="mb-4">
+          <label htmlFor="condition_text" className="block text-sm font-medium text-gray-700 mb-1">
+            Condition Description <span className="text-gray-500 text-xs">(Optional but recommended)</span>
+          </label>
+          <textarea
+            id="condition_text"
+            rows={3}
+            placeholder="e.g., light highlighting, cover bent, no tears, pages in good condition"
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+              errors.condition_text ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'
+            }`}
+            {...register('condition_text')}
+          />
+          {errors.condition_text && (
+            <p className="mt-1 text-sm text-red-600">{errors.condition_text.message}</p>
+          )}
+          <p className="mt-1 text-xs text-gray-500">
+            Describe the physical condition of the book honestly. This helps buyers make informed decisions.
+          </p>
+        </div>
+        
+        {/* AI Enhancer */}
+        <AIEnhancer
+          isbn={isbn}
+          edition={edition}
+          conditionText={conditionText || ''}
+          currentTitle={title}
+          currentDescription={description}
+          onApplyTitle={(title) => setValue('title', title)}
+          onApplyDescription={(desc) => setValue('description', desc)}
+          onApplyBullets={(bullets) => {
+            // Store bullets in description or tags
+            setValue('tags', bullets)
+          }}
+          onApplyKeywords={(keywords) => setValue('tags', keywords)}
+          onApplyPriceRange={(min, max) => {
+            const avgPrice = ((min + max) / 2).toFixed(2)
+            setValue('price', avgPrice)
+          }}
+        />
+        
+        <div className="mb-4">
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+            Full Description <span className="text-gray-500 text-xs">(Optional)</span>
+          </label>
+          <textarea
+            id="description"
+            rows={4}
+            placeholder="Add a detailed description of the book, its condition, and any additional information..."
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+              errors.description ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'
+            }`}
+            {...register('description')}
+          />
+          {errors.description && (
+            <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+          )}
+        </div>
         
         {/* Image Upload Field */}
         <div className="mb-4">
