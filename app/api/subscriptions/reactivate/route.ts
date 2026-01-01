@@ -66,16 +66,58 @@ export async function POST(request: NextRequest) {
 
     // Get the original period end date from our database (when subscription was supposed to end)
     const originalPeriodEnd = new Date(subscription.current_period_end)
+    const originalPeriodEndTimestamp = Math.floor(originalPeriodEnd.getTime() / 1000)
     const now = new Date()
 
+    // Get the Stripe subscription first to check its current state
+    const stripeSubscriptionBefore = await stripe.subscriptions.retrieve(
+      subscription.stripe_subscription_id
+    )
+
+    console.log(`📅 Original period end from DB: ${originalPeriodEnd.toISOString()} (${originalPeriodEndTimestamp})`)
+    console.log(`📅 Stripe period end before update: ${new Date(stripeSubscriptionBefore.current_period_end * 1000).toISOString()} (${stripeSubscriptionBefore.current_period_end})`)
+
+    // Prepare update options
+    const updateOptions: Stripe.SubscriptionUpdateParams = {
+      cancel_at_period_end: false,
+    }
+
+    // If the original period end is in the future, we need to preserve it.
+    // If Stripe's period end already differs from our original, we'll try to fix it.
+    // Note: We can't directly set current_period_end in Stripe, but we can try using
+    // billing_cycle_anchor. However, this may not always work as expected.
+    if (originalPeriodEnd > now) {
+      if (stripeSubscriptionBefore.current_period_end !== originalPeriodEndTimestamp) {
+        // Stripe's period end is different from our original - this shouldn't happen if cancel_at_period_end was true
+        // Try to fix it by setting billing_cycle_anchor to the original period end
+        // This tells Stripe when the next billing cycle should start, which should make the current period end at that time
+        updateOptions.billing_cycle_anchor = originalPeriodEndTimestamp
+        updateOptions.proration_behavior = 'none' // Don't prorate, just preserve the date
+        console.log(`🔧 Stripe period end (${stripeSubscriptionBefore.current_period_end}) differs from original (${originalPeriodEndTimestamp})`)
+        console.log(`🔧 Setting billing_cycle_anchor to ${originalPeriodEnd.toISOString()} to try to preserve original period end`)
+      } else {
+        // Stripe's period end matches our original - just remove cancel_at_period_end
+        // Stripe should preserve the current_period_end when we do this
+        console.log(`✅ Stripe period end matches original (${originalPeriodEnd.toISOString()}), removing cancel_at_period_end should preserve it`)
+      }
+    }
+
     // Reactivate subscription by removing cancellation at period end
-    // Stripe will preserve the current_period_end if the subscription is still active
+    // If billing_cycle_anchor was set, it will preserve the original period end
     const updatedSubscription = await stripe.subscriptions.update(
       subscription.stripe_subscription_id,
-      {
-        cancel_at_period_end: false,
-      }
+      updateOptions
     )
+
+    console.log(`📅 Stripe period end after update: ${new Date(updatedSubscription.current_period_end * 1000).toISOString()} (${updatedSubscription.current_period_end})`)
+
+    // If Stripe still changed the period end despite our billing_cycle_anchor, we'll preserve it in the database
+    // This is a fallback in case billing_cycle_anchor doesn't work as expected
+    const stripeChangedPeriod = originalPeriodEnd > now && updatedSubscription.current_period_end !== originalPeriodEndTimestamp
+    if (stripeChangedPeriod) {
+      console.log(`⚠️ Stripe changed period end to ${updatedSubscription.current_period_end}, but original was ${originalPeriodEndTimestamp}`)
+      console.log(`⚠️ billing_cycle_anchor may not have worked as expected, will preserve in database`)
+    }
 
     // Sync from Stripe using canonical helper (ensures consistency)
     if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -91,8 +133,8 @@ export async function POST(request: NextRequest) {
       )
       await upsertSubscriptionFromStripe(updatedSubscription, user.id, supabaseAdmin)
       
-      // After syncing from Stripe, preserve the original period end date in our database
-      // This ensures the subscription continues from when it was supposed to end, not from today
+      // After syncing from Stripe, check if we need to preserve the original period end date
+      // This is a fallback in case Stripe changed it despite our billing_cycle_anchor setting
       if (originalPeriodEnd > now) {
         // Only preserve if the original period hasn't ended yet
         const { data: syncedSub } = await supabaseAdmin
@@ -103,7 +145,8 @@ export async function POST(request: NextRequest) {
         
         const syncedPeriodEnd = syncedSub ? new Date(syncedSub.current_period_end) : null
         
-        // If Stripe's period end is different from the original, preserve the original
+        // If Stripe's period end is different from the original, preserve the original in our database
+        // Note: This is a fallback. Ideally, Stripe should have the correct value after billing_cycle_anchor
         if (syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()) {
           await supabaseAdmin
             .from('subscriptions')
@@ -112,7 +155,10 @@ export async function POST(request: NextRequest) {
               updated_at: new Date().toISOString(),
             })
             .eq('stripe_subscription_id', subscription.stripe_subscription_id)
-          console.log(`✅ Preserved original period end date: ${originalPeriodEnd.toISOString()} (was: ${syncedPeriodEnd.toISOString()})`)
+          console.log(`✅ Preserved original period end date in database (fallback): ${originalPeriodEnd.toISOString()} (Stripe had: ${syncedPeriodEnd.toISOString()})`)
+          console.log(`⚠️ Note: Stripe webhooks may overwrite this. Consider checking why billing_cycle_anchor didn't preserve the period end.`)
+        } else {
+          console.log(`✅ Period end dates match: ${originalPeriodEnd.toISOString()}`)
         }
       }
       
