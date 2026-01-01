@@ -312,6 +312,37 @@ export default function SubscriptionPage() {
     }
   }
 
+  const handleReactivate = async () => {
+    if (!confirm('Are you sure you want to reactivate your subscription? Your subscription will continue automatically.')) {
+      return
+    }
+
+    try {
+      setProcessing(true)
+      setError(null)
+
+      const response = await fetch('/api/subscriptions/reactivate', {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to reactivate subscription')
+      }
+
+      // Refresh status
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        await fetchSubscriptionStatus(session)
+      }
+      alert('Your subscription has been reactivated successfully!')
+    } catch (err: any) {
+      setError(err.message || 'Failed to reactivate subscription')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -434,7 +465,7 @@ export default function SubscriptionPage() {
             {subscriptionStatus.subscription?.cancel_at_period_end ? (
               <Button
                 variant="primary"
-                onClick={handleCancel}
+                onClick={handleReactivate}
                 disabled={processing}
                 className="w-full"
               >
