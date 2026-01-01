@@ -502,7 +502,27 @@ export default function SubscriptionPage() {
             <div className="space-y-3 mb-8">
               <div className="flex items-start">
                 <span className="text-green-500 mr-2">✓</span>
-                <span>Messaging</span>
+                <div>
+                  <span className="font-medium">Messaging</span>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <span className="text-green-500 mr-2">✓</span>
+                <div>
+                  <span className="font-medium">AI Advanced Search</span>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Natural language search that understands what you&apos;re looking for to find the perfect textbooks
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <span className="text-green-500 mr-2">✓</span>
+                <div>
+                  <span className="font-medium">AI-Enhanced Book Listings</span>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Smart summaries and insights that help you discover the perfect match faster
+                  </p>
+                </div>
               </div>
             </div>
 

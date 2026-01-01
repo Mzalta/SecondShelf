@@ -9,6 +9,8 @@ import { useBookStore } from '@/lib/store/useBookStore'
 import { getCurrentUser, signInWithGoogle } from '@/lib/auth/auth'
 import { categorizeBook } from '@/lib/api/categorize'
 import { uploadBookImage } from '@/lib/utils/imageUpload'
+import { enhanceListing } from '@/app/actions/enhanceListing'
+import { useProStatus } from '@/lib/hooks/useProStatus'
 import FormInput from '@/components/features/forms/FormInput'
 import Button from '@/components/ui/Button'
 import ErrorDisplay from '@/components/ui/ErrorDisplay'
@@ -22,16 +24,24 @@ const bookSchema = z.object({
   price: z.string().min(1, 'Price is required'),
   contact: z.string().min(1, 'Contact information is required'),
   poster: z.string().min(1, 'Your name is required'),
-  category: z.string().optional()
+  category: z.string().optional(),
+  isbn: z.string().optional(),
+  edition: z.string().optional(),
+  condition_text: z.string().optional(),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 })
 
 export default function AddBookPage() {
   const router = useRouter()
   const { addListing, loading, error, setCurrentUser, fetchBooks, clearError, currentUser } = useBookStore()
+  const { isPro } = useProStatus()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [isCategorizing, setIsCategorizing] = useState(false)
   const [categorizeError, setCategorizeError] = useState<string | null>(null)
+  const [isEnhancing, setIsEnhancing] = useState(false)
+  const [enhanceError, setEnhanceError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -53,6 +63,10 @@ export default function AddBookPage() {
   const author = watch('author')
   const course = watch('course')
   const price = watch('price')
+  const isbn = watch('isbn')
+  const edition = watch('edition')
+  const conditionText = watch('condition_text')
+  const description = watch('description')
   
   // Check authentication on mount
   useEffect(() => {
@@ -181,6 +195,7 @@ export default function AddBookPage() {
     try {
       setIsCategorizing(true)
       setCategorizeError(null)
+      setEnhanceError(null)
       
       // Get current user for image upload (use store user or fetch it)
       const user = currentUser || await getCurrentUser()
@@ -222,10 +237,47 @@ export default function AddBookPage() {
       
       setIsCategorizing(false)
       
+      // Auto-enhance listing with AI if user is Pro and has condition text
+      let enhancedData = { ...data }
+      if (isPro && data.condition_text && data.condition_text.trim()) {
+        setIsEnhancing(true)
+        try {
+          const enhancementResult = await enhanceListing({
+            isbn: data.isbn?.trim() || undefined,
+            edition: data.edition?.trim() || undefined,
+            condition_text: data.condition_text.trim(),
+            current_title: data.title?.trim() || undefined,
+            current_description: data.description?.trim() || undefined,
+          })
+          
+          if (enhancementResult.success && enhancementResult.data) {
+            // Apply AI enhancements automatically
+            enhancedData = {
+              ...enhancedData,
+              title: enhancementResult.data.optimized_title,
+              description: enhancementResult.data.optimized_description,
+              tags: enhancementResult.data.keywords,
+              // Optionally update price to suggested average
+              price: data.price || `$${((enhancementResult.data.price_min_usd + enhancementResult.data.price_max_usd) / 2).toFixed(2)}`,
+            }
+          } else {
+            // Don't block submission if enhancement fails
+            console.error('AI enhancement failed:', enhancementResult.error)
+            setEnhanceError(enhancementResult.error || 'AI enhancement unavailable')
+          }
+        } catch (error: any) {
+          // Don't block submission if enhancement fails
+          console.error('Error enhancing listing:', error)
+          setEnhanceError(error.message || 'Failed to enhance listing')
+        } finally {
+          setIsEnhancing(false)
+        }
+      }
+      
       // Ensure price is formatted before submission
       const formattedData: BookFormData = {
-        ...data,
-        price: formatPrice(data.price),
+        ...enhancedData,
+        price: formatPrice(enhancedData.price),
         category,
         imageUrl
       }
@@ -238,6 +290,7 @@ export default function AddBookPage() {
       router.push('/')
     } catch (error) {
       setIsCategorizing(false)
+      setIsEnhancing(false)
       setUploadingImage(false)
       // Error is already handled in the store
       console.error('Error adding book:', error)
@@ -304,6 +357,85 @@ export default function AddBookPage() {
           error={errors.course?.message}
           {...register('course')}
         />
+        
+        <FormInput
+          label="ISBN"
+          placeholder="e.g., 978-0-123456-78-9 (Optional)"
+          error={errors.isbn?.message}
+          {...register('isbn')}
+        />
+        
+        <FormInput
+          label="Edition"
+          placeholder="e.g., 5th Edition, 2023 Edition (Optional)"
+          error={errors.edition?.message}
+          {...register('edition')}
+        />
+        
+        <div className="mb-4">
+          <label htmlFor="condition_text" className="block text-sm font-medium text-gray-700 mb-1">
+            Condition Description <span className="text-gray-500 text-xs">(Optional but recommended)</span>
+          </label>
+          <textarea
+            id="condition_text"
+            rows={3}
+            placeholder="e.g., light highlighting, cover bent, no tears, pages in good condition"
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+              errors.condition_text ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'
+            }`}
+            {...register('condition_text')}
+          />
+          {errors.condition_text && (
+            <p className="mt-1 text-sm text-red-600">{errors.condition_text.message}</p>
+          )}
+          <p className="mt-1 text-xs text-gray-500">
+            Describe the physical condition of the book honestly. This helps buyers make informed decisions.
+          </p>
+        </div>
+        
+        {/* AI Enhancement Info - Automatic on submit for Pro users */}
+        {isPro && (
+          <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-teal-50 border border-purple-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <span>✨</span> AI Enhancement
+                </h3>
+                <p className="text-sm text-gray-700 mb-2">
+                  Your listing will be automatically enhanced with AI when you submit! We&apos;ll optimize your title, description, and add relevant keywords based on the information you provide.
+                </p>
+                {conditionText && conditionText.trim() && (
+                  <p className="text-xs text-gray-600">
+                    ✓ Condition text provided - AI will use this to create an optimized listing
+                  </p>
+                )}
+                {(!conditionText || !conditionText.trim()) && (
+                  <p className="text-xs text-amber-600">
+                    💡 Tip: Add condition details above for better AI enhancement results
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className="mb-4">
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+            Full Description <span className="text-gray-500 text-xs">(Optional)</span>
+          </label>
+          <textarea
+            id="description"
+            rows={4}
+            placeholder="Add a detailed description of the book, its condition, and any additional information..."
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+              errors.description ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'
+            }`}
+            {...register('description')}
+          />
+          {errors.description && (
+            <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+          )}
+        </div>
         
         {/* Image Upload Field */}
         <div className="mb-4">
@@ -400,14 +532,36 @@ export default function AddBookPage() {
           </div>
         )}
         
+        {enhanceError && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800 font-medium mb-1">
+              AI Enhancement Note:
+            </p>
+            <p className="text-sm text-yellow-700">
+              {enhanceError}
+            </p>
+            <p className="text-xs text-yellow-600 mt-1">
+              Your listing will be added as-is. You can still edit it manually.
+            </p>
+          </div>
+        )}
+        
+        {isPro && conditionText && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              ✨ Pro feature: Your listing will be automatically enhanced with AI when you submit!
+            </p>
+          </div>
+        )}
+        
         <div className="flex gap-4 mt-6">
           <Button
             type="submit"
             variant="primary"
-            loading={isSubmitting || loading || isCategorizing || uploadingImage}
-            disabled={isSubmitting || loading || isCategorizing || uploadingImage}
+            loading={isSubmitting || loading || isCategorizing || isEnhancing || uploadingImage}
+            disabled={isSubmitting || loading || isCategorizing || isEnhancing || uploadingImage}
           >
-            {isCategorizing ? 'Categorizing...' : uploadingImage ? 'Uploading image...' : 'Add Listing'}
+            {isEnhancing ? 'Enhancing with AI...' : isCategorizing ? 'Categorizing...' : uploadingImage ? 'Uploading image...' : 'Add Listing'}
           </Button>
           <Button
             type="button"

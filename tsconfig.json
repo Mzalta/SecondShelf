@@ -25,6 +25,6 @@
     "forceConsistentCasingInFileNames": false,
     "typeRoots": ["./node_modules/@types"]
   },
-  "include": ["./app/**/*", "./components/**/*", "./lib/**/*", "./types/**/*", "next-env.d.ts", ".next/types/**/*.ts"],
+  "include": ["./app/**/*", "./components/**/*", "./lib/**/*", "./types/**/*", "./scripts/**/*", "next-env.d.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules", "**/node_modules/**", "**/.next/**"]
 }

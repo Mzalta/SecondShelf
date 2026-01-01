@@ -12,6 +12,11 @@ export interface Book {
   sold?: boolean
   category?: string
   imageUrl?: string
+  isbn?: string
+  edition?: string
+  condition_text?: string
+  description?: string
+  tags?: string[]
   createdAt?: string
   updatedAt?: string
 }
@@ -25,6 +30,11 @@ export interface BookFormData {
   poster: string
   category?: string
   imageUrl?: string
+  isbn?: string
+  edition?: string
+  condition_text?: string
+  description?: string
+  tags?: string[]
 }
 
 export interface Filters {
