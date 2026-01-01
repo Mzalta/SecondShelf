@@ -11,7 +11,9 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/subscriptions/reactivate
- * Reactivate user's subscription by removing the cancellation at period end
+ * Reactivate user's subscription by removing the cancellation at period end.
+ * Preserves the original period end date so the subscription continues from when
+ * it was supposed to end, not from the reactivation date.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -48,10 +50,10 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔎 Authenticated user for reactivate: ${user.id}`)
 
-    // Get user's subscription
+    // Get user's subscription with original period end date
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
-      .select('stripe_subscription_id')
+      .select('stripe_subscription_id, current_period_end')
       .eq('user_id', user.id)
       .single()
 
@@ -62,7 +64,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Reactivate subscription by removing cancellation at period end (Stripe is source of truth)
+    // Get the original period end date from our database (when subscription was supposed to end)
+    const originalPeriodEnd = new Date(subscription.current_period_end)
+    const now = new Date()
+
+    // Reactivate subscription by removing cancellation at period end
+    // Stripe will preserve the current_period_end if the subscription is still active
     const updatedSubscription = await stripe.subscriptions.update(
       subscription.stripe_subscription_id,
       {
@@ -83,6 +90,32 @@ export async function POST(request: NextRequest) {
         }
       )
       await upsertSubscriptionFromStripe(updatedSubscription, user.id, supabaseAdmin)
+      
+      // After syncing from Stripe, preserve the original period end date in our database
+      // This ensures the subscription continues from when it was supposed to end, not from today
+      if (originalPeriodEnd > now) {
+        // Only preserve if the original period hasn't ended yet
+        const { data: syncedSub } = await supabaseAdmin
+          .from('subscriptions')
+          .select('current_period_end')
+          .eq('stripe_subscription_id', subscription.stripe_subscription_id)
+          .single()
+        
+        const syncedPeriodEnd = syncedSub ? new Date(syncedSub.current_period_end) : null
+        
+        // If Stripe's period end is different from the original, preserve the original
+        if (syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()) {
+          await supabaseAdmin
+            .from('subscriptions')
+            .update({
+              current_period_end: originalPeriodEnd.toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('stripe_subscription_id', subscription.stripe_subscription_id)
+          console.log(`✅ Preserved original period end date: ${originalPeriodEnd.toISOString()} (was: ${syncedPeriodEnd.toISOString()})`)
+        }
+      }
+      
       console.log(`✅ Subscription reactivation synced from Stripe: ${updatedSubscription.id}`)
     } else {
       // Fallback: update database directly (shouldn't happen in production)
@@ -90,6 +123,8 @@ export async function POST(request: NextRequest) {
         .from('subscriptions')
         .update({
           cancel_at_period_end: false,
+          // Preserve original period end if it's in the future
+          ...(originalPeriodEnd > now ? { current_period_end: originalPeriodEnd.toISOString() } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('stripe_subscription_id', subscription.stripe_subscription_id)
