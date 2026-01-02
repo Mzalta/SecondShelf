@@ -98,18 +98,40 @@ export async function POST(request: NextRequest) {
 
     console.log(`📅 Original period end from DB: ${originalPeriodEnd.toISOString()} (${originalPeriodEndTimestamp})`)
     // Access current_period_end using bracket notation to avoid TypeScript conflict with local Subscription type
-    const stripePeriodEnd = (stripeSubscriptionBefore as any).current_period_end as number
+    const stripeSubscriptionAny = stripeSubscriptionBefore as any
+    const stripePeriodEnd = stripeSubscriptionAny.current_period_end
+    
+    // Log the subscription object to debug
+    console.log(`🔍 Stripe subscription data:`, {
+      id: stripeSubscriptionAny.id,
+      status: stripeSubscriptionAny.status,
+      current_period_end: stripePeriodEnd,
+      current_period_end_type: typeof stripePeriodEnd,
+      has_current_period_end: 'current_period_end' in stripeSubscriptionAny,
+    })
     
     // Validate Stripe period end is valid
-    if (!stripePeriodEnd || isNaN(stripePeriodEnd)) {
-      console.error(`Invalid Stripe period end: ${stripePeriodEnd}`)
+    // current_period_end should be a number (Unix timestamp in seconds)
+    if (stripePeriodEnd === undefined || stripePeriodEnd === null) {
+      console.error(`Stripe subscription missing current_period_end property`)
+      console.error(`Available keys:`, Object.keys(stripeSubscriptionAny))
       return NextResponse.json(
-        { error: 'Invalid subscription data from Stripe' },
+        { error: 'Subscription data from Stripe is missing period end date' },
         { status: 500 }
       )
     }
     
-    console.log(`📅 Stripe period end before update: ${new Date(stripePeriodEnd * 1000).toISOString()} (${stripePeriodEnd})`)
+    const stripePeriodEndNum = typeof stripePeriodEnd === 'number' ? stripePeriodEnd : Number(stripePeriodEnd)
+    
+    if (isNaN(stripePeriodEndNum) || stripePeriodEndNum <= 0) {
+      console.error(`Invalid Stripe period end value: ${stripePeriodEnd} (type: ${typeof stripePeriodEnd})`)
+      return NextResponse.json(
+        { error: 'Invalid subscription period end date from Stripe' },
+        { status: 500 }
+      )
+    }
+    
+    console.log(`📅 Stripe period end before update: ${new Date(stripePeriodEndNum * 1000).toISOString()} (${stripePeriodEndNum})`)
 
     // Prepare update options
     const updateOptions: Stripe.SubscriptionUpdateParams = {
@@ -121,14 +143,14 @@ export async function POST(request: NextRequest) {
     // Note: We can't directly set current_period_end in Stripe, but we can try using
     // billing_cycle_anchor. However, this may not always work as expected.
     if (originalPeriodEnd > now) {
-      if (stripePeriodEnd !== originalPeriodEndTimestamp) {
+      if (stripePeriodEndNum !== originalPeriodEndTimestamp) {
         // Stripe's period end is different from our original - this shouldn't happen if cancel_at_period_end was true
         // Try to fix it by setting billing_cycle_anchor to the original period end
         // This tells Stripe when the next billing cycle should start, which should make the current period end at that time
         // billing_cycle_anchor accepts number (Unix timestamp) or 'now' | 'unchanged'
         updateOptions.billing_cycle_anchor = originalPeriodEndTimestamp as unknown as Stripe.SubscriptionUpdateParams.BillingCycleAnchor
         updateOptions.proration_behavior = 'none' // Don't prorate, just preserve the date
-        console.log(`🔧 Stripe period end (${stripePeriodEnd}) differs from original (${originalPeriodEndTimestamp})`)
+        console.log(`🔧 Stripe period end (${stripePeriodEndNum}) differs from original (${originalPeriodEndTimestamp})`)
         console.log(`🔧 Setting billing_cycle_anchor to ${originalPeriodEnd.toISOString()} to try to preserve original period end`)
       } else {
         // Stripe's period end matches our original - just remove cancel_at_period_end
@@ -145,13 +167,24 @@ export async function POST(request: NextRequest) {
     )
 
     // Access current_period_end using bracket notation to avoid TypeScript conflict
-    const updatedPeriodEnd = (updatedSubscription as any).current_period_end as number
+    const updatedSubscriptionAny = updatedSubscription as any
+    const updatedPeriodEndRaw = updatedSubscriptionAny.current_period_end
     
     // Validate updated period end is valid
-    if (!updatedPeriodEnd || isNaN(updatedPeriodEnd)) {
-      console.error(`Invalid updated period end: ${updatedPeriodEnd}`)
+    if (updatedPeriodEndRaw === undefined || updatedPeriodEndRaw === null) {
+      console.error(`Stripe subscription missing current_period_end after update`)
       return NextResponse.json(
-        { error: 'Invalid subscription data from Stripe after update' },
+        { error: 'Subscription data from Stripe is missing period end date after update' },
+        { status: 500 }
+      )
+    }
+    
+    const updatedPeriodEnd = typeof updatedPeriodEndRaw === 'number' ? updatedPeriodEndRaw : Number(updatedPeriodEndRaw)
+    
+    if (isNaN(updatedPeriodEnd) || updatedPeriodEnd <= 0) {
+      console.error(`Invalid updated period end value: ${updatedPeriodEndRaw} (type: ${typeof updatedPeriodEndRaw})`)
+      return NextResponse.json(
+        { error: 'Invalid subscription period end date from Stripe after update' },
         { status: 500 }
       )
     }
