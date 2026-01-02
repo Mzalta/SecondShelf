@@ -16,6 +16,8 @@ export const dynamic = 'force-dynamic'
  * it was supposed to end, not from the reactivation date.
  */
 export async function POST(request: NextRequest) {
+  let subscription: any = null // Declare subscription in outer scope for error handling
+  
   try {
     // Debug: Log cookies to verify they're being sent
     const allCookies = cookies().getAll()
@@ -51,11 +53,13 @@ export async function POST(request: NextRequest) {
     console.log(`🔎 Authenticated user for reactivate: ${user.id}`)
 
     // Get user's subscription with original period end date
-    const { data: subscription, error: subError } = await supabase
+    const { data: subscriptionData, error: subError } = await supabase
       .from('subscriptions')
       .select('stripe_subscription_id, current_period_end')
       .eq('user_id', user.id)
       .single()
+    
+    subscription = subscriptionData // Assign to outer scope variable
 
     if (subError || !subscription) {
       return NextResponse.json(
@@ -65,7 +69,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the original period end date from our database (when subscription was supposed to end)
+    // Validate that current_period_end exists and is valid
+    if (!subscription.current_period_end) {
+      return NextResponse.json(
+        { error: 'Subscription period end date is missing' },
+        { status: 400 }
+      )
+    }
+
     const originalPeriodEnd = new Date(subscription.current_period_end)
+    
+    // Check if the date is valid
+    if (isNaN(originalPeriodEnd.getTime())) {
+      console.error(`Invalid period end date from database: ${subscription.current_period_end}`)
+      return NextResponse.json(
+        { error: 'Invalid subscription period end date' },
+        { status: 400 }
+      )
+    }
+
     const originalPeriodEndTimestamp = Math.floor(originalPeriodEnd.getTime() / 1000)
     const now = new Date()
 
@@ -77,6 +99,16 @@ export async function POST(request: NextRequest) {
     console.log(`📅 Original period end from DB: ${originalPeriodEnd.toISOString()} (${originalPeriodEndTimestamp})`)
     // Access current_period_end using bracket notation to avoid TypeScript conflict with local Subscription type
     const stripePeriodEnd = (stripeSubscriptionBefore as any).current_period_end as number
+    
+    // Validate Stripe period end is valid
+    if (!stripePeriodEnd || isNaN(stripePeriodEnd)) {
+      console.error(`Invalid Stripe period end: ${stripePeriodEnd}`)
+      return NextResponse.json(
+        { error: 'Invalid subscription data from Stripe' },
+        { status: 500 }
+      )
+    }
+    
     console.log(`📅 Stripe period end before update: ${new Date(stripePeriodEnd * 1000).toISOString()} (${stripePeriodEnd})`)
 
     // Prepare update options
@@ -114,6 +146,16 @@ export async function POST(request: NextRequest) {
 
     // Access current_period_end using bracket notation to avoid TypeScript conflict
     const updatedPeriodEnd = (updatedSubscription as any).current_period_end as number
+    
+    // Validate updated period end is valid
+    if (!updatedPeriodEnd || isNaN(updatedPeriodEnd)) {
+      console.error(`Invalid updated period end: ${updatedPeriodEnd}`)
+      return NextResponse.json(
+        { error: 'Invalid subscription data from Stripe after update' },
+        { status: 500 }
+      )
+    }
+    
     console.log(`📅 Stripe period end after update: ${new Date(updatedPeriodEnd * 1000).toISOString()} (${updatedPeriodEnd})`)
 
     // If Stripe still changed the period end despite our billing_cycle_anchor, we'll preserve it in the database
@@ -148,11 +190,17 @@ export async function POST(request: NextRequest) {
           .eq('stripe_subscription_id', subscription.stripe_subscription_id)
           .single()
         
-        const syncedPeriodEnd = syncedSub ? new Date(syncedSub.current_period_end) : null
+        const syncedPeriodEnd = syncedSub && syncedSub.current_period_end 
+          ? new Date(syncedSub.current_period_end) 
+          : null
         
-        // If Stripe's period end is different from the original, preserve the original in our database
-        // Note: This is a fallback. Ideally, Stripe should have the correct value after billing_cycle_anchor
-        if (syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()) {
+        // Validate synced period end if it exists
+        if (syncedPeriodEnd && isNaN(syncedPeriodEnd.getTime())) {
+          console.error(`Invalid synced period end: ${syncedSub?.current_period_end}`)
+          // Continue without the fallback update
+        } else if (syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()) {
+          // If Stripe's period end is different from the original, preserve the original in our database
+          // Note: This is a fallback. Ideally, Stripe should have the correct value after billing_cycle_anchor
           await supabaseAdmin
             .from('subscriptions')
             .update({
@@ -187,8 +235,23 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Error reactivating subscription:', error)
+    console.error('Error stack:', error.stack)
+    
+    // Check if it's a date-related error
+    const errorMessage = error.message || ''
+    if (errorMessage.includes('Invalid Time') || errorMessage.includes('Invalid date') || errorMessage.includes('toISOString')) {
+      console.error('Date parsing error detected. Subscription data:', {
+        current_period_end: subscription?.current_period_end,
+        stripe_subscription_id: subscription?.stripe_subscription_id,
+      })
+      return NextResponse.json(
+        { error: 'Invalid date value in subscription data. Please contact support.' },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'Failed to reactivate subscription' },
+      { error: errorMessage || 'Failed to reactivate subscription' },
       { status: 500 }
     )
   }
