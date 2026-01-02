@@ -110,28 +110,27 @@ export async function POST(request: NextRequest) {
       has_current_period_end: 'current_period_end' in stripeSubscriptionAny,
     })
     
-    // Validate Stripe period end is valid
-    // current_period_end should be a number (Unix timestamp in seconds)
-    if (stripePeriodEnd === undefined || stripePeriodEnd === null) {
-      console.error(`Stripe subscription missing current_period_end property`)
-      console.error(`Available keys:`, Object.keys(stripeSubscriptionAny))
-      return NextResponse.json(
-        { error: 'Subscription data from Stripe is missing period end date' },
-        { status: 500 }
-      )
+    // Try to get Stripe period end, but use database value as fallback
+    let stripePeriodEndNum: number | null = null
+    
+    if (stripePeriodEnd !== undefined && stripePeriodEnd !== null) {
+      const converted = typeof stripePeriodEnd === 'number' ? stripePeriodEnd : Number(stripePeriodEnd)
+      if (!isNaN(converted) && converted > 0) {
+        stripePeriodEndNum = converted
+        console.log(`📅 Stripe period end before update: ${new Date(stripePeriodEndNum * 1000).toISOString()} (${stripePeriodEndNum})`)
+      } else {
+        console.warn(`⚠️ Stripe period end value is invalid: ${stripePeriodEnd}, will use database value`)
+      }
+    } else {
+      console.warn(`⚠️ Stripe subscription missing current_period_end property, will use database value`)
+      console.log(`Available keys:`, Object.keys(stripeSubscriptionAny).slice(0, 20)) // Log first 20 keys
     }
     
-    const stripePeriodEndNum = typeof stripePeriodEnd === 'number' ? stripePeriodEnd : Number(stripePeriodEnd)
-    
-    if (isNaN(stripePeriodEndNum) || stripePeriodEndNum <= 0) {
-      console.error(`Invalid Stripe period end value: ${stripePeriodEnd} (type: ${typeof stripePeriodEnd})`)
-      return NextResponse.json(
-        { error: 'Invalid subscription period end date from Stripe' },
-        { status: 500 }
-      )
+    // Use database value if Stripe value is not available
+    if (stripePeriodEndNum === null) {
+      console.log(`📅 Using database period end value: ${originalPeriodEnd.toISOString()} (${originalPeriodEndTimestamp})`)
+      stripePeriodEndNum = originalPeriodEndTimestamp
     }
-    
-    console.log(`📅 Stripe period end before update: ${new Date(stripePeriodEndNum * 1000).toISOString()} (${stripePeriodEndNum})`)
 
     // Prepare update options
     const updateOptions: Stripe.SubscriptionUpdateParams = {
@@ -143,19 +142,28 @@ export async function POST(request: NextRequest) {
     // Note: We can't directly set current_period_end in Stripe, but we can try using
     // billing_cycle_anchor. However, this may not always work as expected.
     if (originalPeriodEnd > now) {
-      if (stripePeriodEndNum !== originalPeriodEndTimestamp) {
-        // Stripe's period end is different from our original - this shouldn't happen if cancel_at_period_end was true
-        // Try to fix it by setting billing_cycle_anchor to the original period end
-        // This tells Stripe when the next billing cycle should start, which should make the current period end at that time
-        // billing_cycle_anchor accepts number (Unix timestamp) or 'now' | 'unchanged'
-        updateOptions.billing_cycle_anchor = originalPeriodEndTimestamp as unknown as Stripe.SubscriptionUpdateParams.BillingCycleAnchor
-        updateOptions.proration_behavior = 'none' // Don't prorate, just preserve the date
-        console.log(`🔧 Stripe period end (${stripePeriodEndNum}) differs from original (${originalPeriodEndTimestamp})`)
-        console.log(`🔧 Setting billing_cycle_anchor to ${originalPeriodEnd.toISOString()} to try to preserve original period end`)
+      // Only set billing_cycle_anchor if Stripe's period end differs from our original
+      // This helps preserve the original period end date
+      const stripePeriodEndFromStripe = (stripeSubscriptionAny.current_period_end !== undefined && stripeSubscriptionAny.current_period_end !== null)
+        ? (typeof stripeSubscriptionAny.current_period_end === 'number' ? stripeSubscriptionAny.current_period_end : Number(stripeSubscriptionAny.current_period_end))
+        : null
+      
+      if (stripePeriodEndFromStripe !== null && !isNaN(stripePeriodEndFromStripe) && stripePeriodEndFromStripe > 0) {
+        if (stripePeriodEndFromStripe !== originalPeriodEndTimestamp) {
+          // Stripe's period end is different from our original - try to fix it
+          updateOptions.billing_cycle_anchor = originalPeriodEndTimestamp as unknown as Stripe.SubscriptionUpdateParams.BillingCycleAnchor
+          updateOptions.proration_behavior = 'none' // Don't prorate, just preserve the date
+          console.log(`🔧 Stripe period end (${stripePeriodEndFromStripe}) differs from original (${originalPeriodEndTimestamp})`)
+          console.log(`🔧 Setting billing_cycle_anchor to ${originalPeriodEnd.toISOString()} to try to preserve original period end`)
+        } else {
+          // Stripe's period end matches our original - just remove cancel_at_period_end
+          console.log(`✅ Stripe period end matches original (${originalPeriodEnd.toISOString()}), removing cancel_at_period_end should preserve it`)
+        }
       } else {
-        // Stripe's period end matches our original - just remove cancel_at_period_end
-        // Stripe should preserve the current_period_end when we do this
-        console.log(`✅ Stripe period end matches original (${originalPeriodEnd.toISOString()}), removing cancel_at_period_end should preserve it`)
+        // Stripe doesn't have a valid period end, set billing_cycle_anchor to preserve our original
+        updateOptions.billing_cycle_anchor = originalPeriodEndTimestamp as unknown as Stripe.SubscriptionUpdateParams.BillingCycleAnchor
+        updateOptions.proration_behavior = 'none'
+        console.log(`🔧 Stripe period end not available, setting billing_cycle_anchor to preserve original: ${originalPeriodEnd.toISOString()}`)
       }
     }
 
@@ -170,26 +178,22 @@ export async function POST(request: NextRequest) {
     const updatedSubscriptionAny = updatedSubscription as any
     const updatedPeriodEndRaw = updatedSubscriptionAny.current_period_end
     
-    // Validate updated period end is valid
-    if (updatedPeriodEndRaw === undefined || updatedPeriodEndRaw === null) {
-      console.error(`Stripe subscription missing current_period_end after update`)
-      return NextResponse.json(
-        { error: 'Subscription data from Stripe is missing period end date after update' },
-        { status: 500 }
-      )
+    // Try to get updated period end, but use original as fallback
+    let updatedPeriodEnd: number
+    
+    if (updatedPeriodEndRaw !== undefined && updatedPeriodEndRaw !== null) {
+      const converted = typeof updatedPeriodEndRaw === 'number' ? updatedPeriodEndRaw : Number(updatedPeriodEndRaw)
+      if (!isNaN(converted) && converted > 0) {
+        updatedPeriodEnd = converted
+        console.log(`📅 Stripe period end after update: ${new Date(updatedPeriodEnd * 1000).toISOString()} (${updatedPeriodEnd})`)
+      } else {
+        console.warn(`⚠️ Invalid updated period end value: ${updatedPeriodEndRaw}, using original database value`)
+        updatedPeriodEnd = originalPeriodEndTimestamp
+      }
+    } else {
+      console.warn(`⚠️ Stripe subscription missing current_period_end after update, using original database value`)
+      updatedPeriodEnd = originalPeriodEndTimestamp
     }
-    
-    const updatedPeriodEnd = typeof updatedPeriodEndRaw === 'number' ? updatedPeriodEndRaw : Number(updatedPeriodEndRaw)
-    
-    if (isNaN(updatedPeriodEnd) || updatedPeriodEnd <= 0) {
-      console.error(`Invalid updated period end value: ${updatedPeriodEndRaw} (type: ${typeof updatedPeriodEndRaw})`)
-      return NextResponse.json(
-        { error: 'Invalid subscription period end date from Stripe after update' },
-        { status: 500 }
-      )
-    }
-    
-    console.log(`📅 Stripe period end after update: ${new Date(updatedPeriodEnd * 1000).toISOString()} (${updatedPeriodEnd})`)
 
     // If Stripe still changed the period end despite our billing_cycle_anchor, we'll preserve it in the database
     // This is a fallback in case billing_cycle_anchor doesn't work as expected
