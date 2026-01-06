@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     console.log(`📅 Original period dates from DB: ${originalPeriodStart?.toISOString()} to ${originalPeriodEnd?.toISOString()}`)
 
     // Cancel subscription at period end (Stripe is source of truth)
-    const updatedSubscription = await stripe.subscriptions.update(
+    const updatedSubscription: Stripe.Subscription = await stripe.subscriptions.update(
       subscription.stripe_subscription_id,
       {
         cancel_at_period_end: true,

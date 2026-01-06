@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
     // Reactivate subscription by removing cancellation at period end
     // Stripe will preserve the current period end when we remove cancel_at_period_end
-    const updatedSubscription = await stripe.subscriptions.update(
+    const updatedSubscription: Stripe.Subscription = await stripe.subscriptions.update(
       subscription.stripe_subscription_id,
       updateOptions
     )
