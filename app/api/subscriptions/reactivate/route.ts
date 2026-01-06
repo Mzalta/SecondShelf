@@ -52,10 +52,10 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔎 Authenticated user for reactivate: ${user.id}`)
 
-    // Get user's subscription with original period end date
+    // Get user's subscription with original period dates to preserve them
     const { data: subscriptionData, error: subError } = await supabase
       .from('subscriptions')
-      .select('stripe_subscription_id, current_period_end')
+      .select('stripe_subscription_id, current_period_start, current_period_end')
       .eq('user_id', user.id)
       .single()
     
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the original period end date from our database (when subscription was supposed to end)
+    // Get the original period dates from our database (when subscription was supposed to start and end)
     // Validate that current_period_end exists and is valid
     if (!subscription.current_period_end) {
       return NextResponse.json(
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const originalPeriodStart = subscription.current_period_start ? new Date(subscription.current_period_start) : null
     const originalPeriodEnd = new Date(subscription.current_period_end)
     
     // Check if the date is valid
@@ -84,6 +85,15 @@ export async function POST(request: NextRequest) {
       console.error(`Invalid period end date from database: ${subscription.current_period_end}`)
       return NextResponse.json(
         { error: 'Invalid subscription period end date' },
+        { status: 400 }
+      )
+    }
+
+    // Validate period start if it exists
+    if (originalPeriodStart && isNaN(originalPeriodStart.getTime())) {
+      console.error(`Invalid period start date from database: ${subscription.current_period_start}`)
+      return NextResponse.json(
+        { error: 'Invalid subscription period start date' },
         { status: 400 }
       )
     }
@@ -96,7 +106,7 @@ export async function POST(request: NextRequest) {
       subscription.stripe_subscription_id
     )
 
-    console.log(`📅 Original period end from DB: ${originalPeriodEnd.toISOString()} (${originalPeriodEndTimestamp})`)
+    console.log(`📅 Original period dates from DB: ${originalPeriodStart?.toISOString()} to ${originalPeriodEnd.toISOString()} (${originalPeriodEndTimestamp})`)
     // Access current_period_end using bracket notation to avoid TypeScript conflict with local Subscription type
     const stripeSubscriptionAny = stripeSubscriptionBefore as any
     const stripePeriodEnd = stripeSubscriptionAny.current_period_end
@@ -212,38 +222,48 @@ export async function POST(request: NextRequest) {
       )
       await upsertSubscriptionFromStripe(updatedSubscription, user.id, supabaseAdmin)
       
-      // After syncing from Stripe, check if we need to preserve the original period end date
-      // This is a fallback in case Stripe changed it despite our billing_cycle_anchor setting
-      if (originalPeriodEnd > now) {
+      // After syncing from Stripe, check if we need to preserve the original period dates
+      // This is a fallback in case Stripe changed them despite our billing_cycle_anchor setting
+      if (originalPeriodStart && originalPeriodEnd && originalPeriodEnd > now) {
         // Only preserve if the original period hasn't ended yet
         const { data: syncedSub } = await supabaseAdmin
           .from('subscriptions')
-          .select('current_period_end')
+          .select('current_period_start, current_period_end')
           .eq('stripe_subscription_id', subscription.stripe_subscription_id)
           .single()
         
-        const syncedPeriodEnd = syncedSub && syncedSub.current_period_end 
-          ? new Date(syncedSub.current_period_end) 
-          : null
+        const syncedPeriodStart = syncedSub?.current_period_start ? new Date(syncedSub.current_period_start) : null
+        const syncedPeriodEnd = syncedSub?.current_period_end ? new Date(syncedSub.current_period_end) : null
         
         // Validate synced period end if it exists
         if (syncedPeriodEnd && isNaN(syncedPeriodEnd.getTime())) {
           console.error(`Invalid synced period end: ${syncedSub?.current_period_end}`)
           // Continue without the fallback update
-        } else if (syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()) {
-          // If Stripe's period end is different from the original, preserve the original in our database
-          // Note: This is a fallback to ensure our database has the correct period end
-          await supabaseAdmin
-            .from('subscriptions')
-            .update({
-              current_period_end: originalPeriodEnd.toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('stripe_subscription_id', subscription.stripe_subscription_id)
-          console.log(`✅ Preserved original period end date in database (fallback): ${originalPeriodEnd.toISOString()} (Stripe had: ${syncedPeriodEnd.toISOString()})`)
-          console.log(`⚠️ Note: Stripe webhooks may overwrite this.`)
         } else {
-          console.log(`✅ Period end dates match: ${originalPeriodEnd.toISOString()}`)
+          // Check if dates changed and restore original dates
+          // We know originalPeriodStart and originalPeriodEnd are not null because we're inside the outer if condition
+          if (originalPeriodStart && originalPeriodEnd) {
+            const periodStartChanged = syncedPeriodStart && syncedPeriodStart.getTime() !== originalPeriodStart.getTime()
+            const periodEndChanged = syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()
+            
+            // If Stripe's period dates are different from the original, preserve the original in our database
+            // Note: This is a fallback to ensure our database has the correct period dates
+            if (periodStartChanged || periodEndChanged) {
+              await supabaseAdmin
+                .from('subscriptions')
+                .update({
+                  current_period_start: originalPeriodStart.toISOString(),
+                  current_period_end: originalPeriodEnd.toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('stripe_subscription_id', subscription.stripe_subscription_id)
+              console.log(`✅ Preserved original period dates in database (fallback): ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
+              console.log(`⚠️ Stripe had: ${syncedPeriodStart?.toISOString()} to ${syncedPeriodEnd?.toISOString()}`)
+              console.log(`⚠️ Note: Stripe webhooks may overwrite this.`)
+            } else {
+              console.log(`✅ Period dates match: ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
+            }
+          }
         }
       }
       
@@ -254,8 +274,11 @@ export async function POST(request: NextRequest) {
         .from('subscriptions')
         .update({
           cancel_at_period_end: false,
-          // Preserve original period end if it's in the future
-          ...(originalPeriodEnd > now ? { current_period_end: originalPeriodEnd.toISOString() } : {}),
+          // Preserve original period dates if they're in the future
+          ...(originalPeriodStart && originalPeriodEnd && originalPeriodEnd > now ? {
+            current_period_start: originalPeriodStart.toISOString(),
+            current_period_end: originalPeriodEnd.toISOString(),
+          } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('stripe_subscription_id', subscription.stripe_subscription_id)
@@ -288,4 +311,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

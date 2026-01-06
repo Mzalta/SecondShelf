@@ -48,10 +48,10 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔎 Authenticated user for cancel: ${user.id}`)
 
-    // Get user's subscription
+    // Get user's subscription with original period dates to preserve them
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
-      .select('stripe_subscription_id')
+      .select('stripe_subscription_id, current_period_start, current_period_end')
       .eq('user_id', user.id)
       .single()
 
@@ -62,6 +62,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Preserve original period dates before updating Stripe
+    const originalPeriodStart = subscription.current_period_start ? new Date(subscription.current_period_start) : null
+    const originalPeriodEnd = subscription.current_period_end ? new Date(subscription.current_period_end) : null
+
+    console.log(`📅 Original period dates from DB: ${originalPeriodStart?.toISOString()} to ${originalPeriodEnd?.toISOString()}`)
+
     // Cancel subscription at period end (Stripe is source of truth)
     const updatedSubscription = await stripe.subscriptions.update(
       subscription.stripe_subscription_id,
@@ -69,6 +75,8 @@ export async function POST(request: NextRequest) {
         cancel_at_period_end: true,
       }
     )
+
+    console.log(`📅 Stripe period dates after cancel: ${new Date(updatedSubscription.current_period_start * 1000).toISOString()} to ${new Date(updatedSubscription.current_period_end * 1000).toISOString()}`)
 
     // Sync from Stripe using canonical helper (ensures consistency)
     if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -84,12 +92,48 @@ export async function POST(request: NextRequest) {
       )
       await upsertSubscriptionFromStripe(updatedSubscription, user.id, supabaseAdmin)
       console.log(`✅ Subscription cancellation synced from Stripe: ${updatedSubscription.id}`)
+      
+      // Restore original period dates if they changed (preserve the original subscription period)
+      if (originalPeriodStart && originalPeriodEnd) {
+        const { data: syncedSub } = await supabaseAdmin
+          .from('subscriptions')
+          .select('current_period_start, current_period_end')
+          .eq('stripe_subscription_id', subscription.stripe_subscription_id)
+          .single()
+        
+        const syncedPeriodStart = syncedSub?.current_period_start ? new Date(syncedSub.current_period_start) : null
+        const syncedPeriodEnd = syncedSub?.current_period_end ? new Date(syncedSub.current_period_end) : null
+        
+        // Check if dates changed and restore original dates
+        const periodStartChanged = syncedPeriodStart && syncedPeriodStart.getTime() !== originalPeriodStart.getTime()
+        const periodEndChanged = syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()
+        
+        if (periodStartChanged || periodEndChanged) {
+          await supabaseAdmin
+            .from('subscriptions')
+            .update({
+              current_period_start: originalPeriodStart.toISOString(),
+              current_period_end: originalPeriodEnd.toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('stripe_subscription_id', subscription.stripe_subscription_id)
+          console.log(`✅ Preserved original period dates in database: ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
+          console.log(`⚠️ Stripe had: ${syncedPeriodStart?.toISOString()} to ${syncedPeriodEnd?.toISOString()}`)
+        } else {
+          console.log(`✅ Period dates unchanged: ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
+        }
+      }
     } else {
       // Fallback: update database directly (shouldn't happen in production)
       await supabase
         .from('subscriptions')
         .update({
           cancel_at_period_end: true,
+          // Preserve original period dates
+          ...(originalPeriodStart && originalPeriodEnd ? {
+            current_period_start: originalPeriodStart.toISOString(),
+            current_period_end: originalPeriodEnd.toISOString(),
+          } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('stripe_subscription_id', subscription.stripe_subscription_id)
