@@ -241,25 +241,28 @@ export async function POST(request: NextRequest) {
           // Continue without the fallback update
         } else {
           // Check if dates changed and restore original dates
-          const periodStartChanged = syncedPeriodStart && syncedPeriodStart.getTime() !== originalPeriodStart.getTime()
-          const periodEndChanged = syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()
-          
-          // If Stripe's period dates are different from the original, preserve the original in our database
-          // Note: This is a fallback to ensure our database has the correct period dates
-          if (periodStartChanged || periodEndChanged) {
-            await supabaseAdmin
-              .from('subscriptions')
-              .update({
-                current_period_start: originalPeriodStart.toISOString(),
-                current_period_end: originalPeriodEnd.toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .eq('stripe_subscription_id', subscription.stripe_subscription_id)
-            console.log(`✅ Preserved original period dates in database (fallback): ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
-            console.log(`⚠️ Stripe had: ${syncedPeriodStart?.toISOString()} to ${syncedPeriodEnd?.toISOString()}`)
-            console.log(`⚠️ Note: Stripe webhooks may overwrite this.`)
-          } else {
-            console.log(`✅ Period dates match: ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
+          // We know originalPeriodStart and originalPeriodEnd are not null because we're inside the outer if condition
+          if (originalPeriodStart && originalPeriodEnd) {
+            const periodStartChanged = syncedPeriodStart && syncedPeriodStart.getTime() !== originalPeriodStart.getTime()
+            const periodEndChanged = syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()
+            
+            // If Stripe's period dates are different from the original, preserve the original in our database
+            // Note: This is a fallback to ensure our database has the correct period dates
+            if (periodStartChanged || periodEndChanged) {
+              await supabaseAdmin
+                .from('subscriptions')
+                .update({
+                  current_period_start: originalPeriodStart.toISOString(),
+                  current_period_end: originalPeriodEnd.toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('stripe_subscription_id', subscription.stripe_subscription_id)
+              console.log(`✅ Preserved original period dates in database (fallback): ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
+              console.log(`⚠️ Stripe had: ${syncedPeriodStart?.toISOString()} to ${syncedPeriodEnd?.toISOString()}`)
+              console.log(`⚠️ Note: Stripe webhooks may overwrite this.`)
+            } else {
+              console.log(`✅ Period dates match: ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
+            }
           }
         }
       }
