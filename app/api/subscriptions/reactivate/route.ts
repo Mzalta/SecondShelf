@@ -10,6 +10,21 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
+ * Safely create a Date object from a string or timestamp
+ * Returns null if the date is invalid
+ */
+function safeDate(dateValue: string | number | null | undefined): Date | null {
+  if (!dateValue) return null
+  try {
+    const date = typeof dateValue === 'string' ? new Date(dateValue) : new Date(dateValue)
+    if (isNaN(date.getTime())) return null
+    return date
+  } catch {
+    return null
+  }
+}
+
+/**
  * POST /api/subscriptions/reactivate
  * Reactivate user's subscription by removing the cancellation at period end.
  * Preserves the original period end date so the subscription continues from when
@@ -77,11 +92,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const originalPeriodStart = subscription.current_period_start ? new Date(subscription.current_period_start) : null
-    const originalPeriodEnd = new Date(subscription.current_period_end)
+    const originalPeriodStart = safeDate(subscription.current_period_start)
+    const originalPeriodEnd = safeDate(subscription.current_period_end)
     
     // Check if the date is valid
-    if (isNaN(originalPeriodEnd.getTime())) {
+    if (!originalPeriodEnd) {
       console.error(`Invalid period end date from database: ${subscription.current_period_end}`)
       return NextResponse.json(
         { error: 'Invalid subscription period end date' },
@@ -90,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate period start if it exists
-    if (originalPeriodStart && isNaN(originalPeriodStart.getTime())) {
+    if (subscription.current_period_start && !originalPeriodStart) {
       console.error(`Invalid period start date from database: ${subscription.current_period_start}`)
       return NextResponse.json(
         { error: 'Invalid subscription period start date' },
@@ -232,12 +247,12 @@ export async function POST(request: NextRequest) {
           .eq('stripe_subscription_id', subscription.stripe_subscription_id)
           .single()
         
-        const syncedPeriodStart = syncedSub?.current_period_start ? new Date(syncedSub.current_period_start) : null
-        const syncedPeriodEnd = syncedSub?.current_period_end ? new Date(syncedSub.current_period_end) : null
+        const syncedPeriodStart = safeDate(syncedSub?.current_period_start)
+        const syncedPeriodEnd = safeDate(syncedSub?.current_period_end)
         
         // Validate synced period end if it exists
-        if (syncedPeriodEnd && isNaN(syncedPeriodEnd.getTime())) {
-          console.error(`Invalid synced period end: ${syncedSub?.current_period_end}`)
+        if (syncedPeriodEnd === null && syncedSub?.current_period_end) {
+          console.error(`Invalid synced period end: ${syncedSub.current_period_end}`)
           // Continue without the fallback update
         } else {
           // Check if dates changed and restore original dates

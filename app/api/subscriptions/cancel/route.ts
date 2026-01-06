@@ -10,6 +10,21 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
+ * Safely create a Date object from a string or timestamp
+ * Returns null if the date is invalid
+ */
+function safeDate(dateValue: string | number | null | undefined): Date | null {
+  if (!dateValue) return null
+  try {
+    const date = typeof dateValue === 'string' ? new Date(dateValue) : new Date(dateValue)
+    if (isNaN(date.getTime())) return null
+    return date
+  } catch {
+    return null
+  }
+}
+
+/**
  * POST /api/subscriptions/cancel
  * Cancel user's subscription at period end
  */
@@ -63,10 +78,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Preserve original period dates before updating Stripe
-    const originalPeriodStart = subscription.current_period_start ? new Date(subscription.current_period_start) : null
-    const originalPeriodEnd = subscription.current_period_end ? new Date(subscription.current_period_end) : null
+    const originalPeriodStart = safeDate(subscription.current_period_start)
+    const originalPeriodEnd = safeDate(subscription.current_period_end)
 
-    console.log(`📅 Original period dates from DB: ${originalPeriodStart?.toISOString()} to ${originalPeriodEnd?.toISOString()}`)
+    console.log(`📅 Original period dates from DB: ${originalPeriodStart?.toISOString() || 'N/A'} to ${originalPeriodEnd?.toISOString() || 'N/A'}`)
 
     // Cancel subscription at period end (Stripe is source of truth)
     const updatedSubscription = await stripe.subscriptions.update(
@@ -80,7 +95,9 @@ export async function POST(request: NextRequest) {
     const stripeSubAny = updatedSubscription as any
     const periodStart = stripeSubAny.current_period_start as number
     const periodEnd = stripeSubAny.current_period_end as number
-    console.log(`📅 Stripe period dates after cancel: ${new Date(periodStart * 1000).toISOString()} to ${new Date(periodEnd * 1000).toISOString()}`)
+    const stripePeriodStart = periodStart ? safeDate(periodStart * 1000) : null
+    const stripePeriodEnd = periodEnd ? safeDate(periodEnd * 1000) : null
+    console.log(`📅 Stripe period dates after cancel: ${stripePeriodStart?.toISOString() || 'N/A'} to ${stripePeriodEnd?.toISOString() || 'N/A'}`)
 
     // Sync from Stripe using canonical helper (ensures consistency)
     if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -105,14 +122,14 @@ export async function POST(request: NextRequest) {
           .eq('stripe_subscription_id', subscription.stripe_subscription_id)
           .single()
         
-        const syncedPeriodStart = syncedSub?.current_period_start ? new Date(syncedSub.current_period_start) : null
-        const syncedPeriodEnd = syncedSub?.current_period_end ? new Date(syncedSub.current_period_end) : null
+        const syncedPeriodStart = safeDate(syncedSub?.current_period_start)
+        const syncedPeriodEnd = safeDate(syncedSub?.current_period_end)
         
-        // Check if dates changed and restore original dates
-        const periodStartChanged = syncedPeriodStart && syncedPeriodStart.getTime() !== originalPeriodStart.getTime()
-        const periodEndChanged = syncedPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()
+        // Check if dates changed and restore original dates (only if both dates are valid)
+        const periodStartChanged = syncedPeriodStart && originalPeriodStart && syncedPeriodStart.getTime() !== originalPeriodStart.getTime()
+        const periodEndChanged = syncedPeriodEnd && originalPeriodEnd && syncedPeriodEnd.getTime() !== originalPeriodEnd.getTime()
         
-        if (periodStartChanged || periodEndChanged) {
+        if ((periodStartChanged || periodEndChanged) && originalPeriodStart && originalPeriodEnd) {
           await supabaseAdmin
             .from('subscriptions')
             .update({
@@ -122,8 +139,8 @@ export async function POST(request: NextRequest) {
             })
             .eq('stripe_subscription_id', subscription.stripe_subscription_id)
           console.log(`✅ Preserved original period dates in database: ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
-          console.log(`⚠️ Stripe had: ${syncedPeriodStart?.toISOString()} to ${syncedPeriodEnd?.toISOString()}`)
-        } else {
+          console.log(`⚠️ Stripe had: ${syncedPeriodStart?.toISOString() || 'N/A'} to ${syncedPeriodEnd?.toISOString() || 'N/A'}`)
+        } else if (originalPeriodStart && originalPeriodEnd) {
           console.log(`✅ Period dates unchanged: ${originalPeriodStart.toISOString()} to ${originalPeriodEnd.toISOString()}`)
         }
       }
@@ -133,7 +150,7 @@ export async function POST(request: NextRequest) {
         .from('subscriptions')
         .update({
           cancel_at_period_end: true,
-          // Preserve original period dates
+          // Preserve original period dates (only if both are valid)
           ...(originalPeriodStart && originalPeriodEnd ? {
             current_period_start: originalPeriodStart.toISOString(),
             current_period_end: originalPeriodEnd.toISOString(),

@@ -10,6 +10,21 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
+ * Safely create a Date object from a string or timestamp
+ * Returns null if the date is invalid
+ */
+function safeDate(dateValue: string | number | null | undefined): Date | null {
+  if (!dateValue) return null
+  try {
+    const date = typeof dateValue === 'string' ? new Date(dateValue) : new Date(dateValue)
+    if (isNaN(date.getTime())) return null
+    return date
+  } catch {
+    return null
+  }
+}
+
+/**
  * GET /api/subscriptions/status
  * Get subscription status for the authenticated user
  * Aggressively syncs from Stripe if subscription not found or status is invalid
@@ -89,8 +104,9 @@ export async function GET(request: NextRequest) {
           .single()
         
         if (updatedSubscription) {
+          const periodEnd = safeDate(updatedSubscription.current_period_end)
           const isActive = ['active', 'trialing'].includes(updatedSubscription.status)
-            && new Date(updatedSubscription.current_period_end) > new Date()
+            && periodEnd !== null && periodEnd > new Date()
           
           console.log(`✅ Synced subscription from Stripe: ${updatedSubscription.stripe_subscription_id}, status: ${updatedSubscription.status}`)
           
@@ -114,9 +130,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if subscription is active (only active or trialing with valid period)
+    const periodEnd = safeDate(subscription?.current_period_end)
     const isActive = subscription 
       && ['active', 'trialing'].includes(subscription.status)
-      && new Date(subscription.current_period_end) > new Date()
+      && periodEnd !== null && periodEnd > new Date()
 
     return NextResponse.json({
       subscription: subscription || null,
@@ -196,8 +213,9 @@ async function syncFromCheckoutSession(
         .single()
       
       if (syncedSubscription) {
+        const periodEnd = safeDate(syncedSubscription.current_period_end)
         const isActive = ['active', 'trialing'].includes(syncedSubscription.status)
-          && new Date(syncedSubscription.current_period_end) > new Date()
+          && periodEnd !== null && periodEnd > new Date()
         
         console.log(`✅ Synced subscription from checkout session: ${syncedSubscription.stripe_subscription_id}, status: ${syncedSubscription.status}`)
         
