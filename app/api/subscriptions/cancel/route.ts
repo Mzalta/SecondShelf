@@ -76,9 +76,11 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Type assertion to ensure TypeScript recognizes Stripe.Subscription properties
-    const stripeSub = updatedSubscription as Stripe.Subscription
-    console.log(`📅 Stripe period dates after cancel: ${new Date(stripeSub.current_period_start * 1000).toISOString()} to ${new Date(stripeSub.current_period_end * 1000).toISOString()}`)
+    // Use bracket notation to access properties to avoid TypeScript conflict with local Subscription type
+    const stripeSubAny = updatedSubscription as any
+    const periodStart = stripeSubAny.current_period_start as number
+    const periodEnd = stripeSubAny.current_period_end as number
+    console.log(`📅 Stripe period dates after cancel: ${new Date(periodStart * 1000).toISOString()} to ${new Date(periodEnd * 1000).toISOString()}`)
 
     // Sync from Stripe using canonical helper (ensures consistency)
     if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -92,8 +94,8 @@ export async function POST(request: NextRequest) {
           },
         }
       )
-      await upsertSubscriptionFromStripe(stripeSub, user.id, supabaseAdmin)
-      console.log(`✅ Subscription cancellation synced from Stripe: ${stripeSub.id}`)
+      await upsertSubscriptionFromStripe(updatedSubscription, user.id, supabaseAdmin)
+      console.log(`✅ Subscription cancellation synced from Stripe: ${stripeSubAny.id}`)
       
       // Restore original period dates if they changed (preserve the original subscription period)
       if (originalPeriodStart && originalPeriodEnd) {
@@ -143,7 +145,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'Subscription will be canceled at the end of the billing period',
-      cancel_at_period_end: stripeSub.cancel_at_period_end,
+      cancel_at_period_end: stripeSubAny.cancel_at_period_end,
     })
   } catch (error: any) {
     console.error('Error canceling subscription:', error)
