@@ -343,12 +343,25 @@ export default function SubscriptionPage() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) {
+      return 'N/A'
+    }
+    try {
+      const date = new Date(dateString)
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'N/A'
+      }
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString)
+      return 'N/A'
+    }
   }
 
   // Show loading while auth is hydrating or initial load
